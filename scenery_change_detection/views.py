@@ -1,7 +1,15 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .serializers import RegisterSerializer
+from .serializers import RegisterSerializer, ImagesToProcessSerializer
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
+from .models import Image
+from io import BytesIO
+from django.core.files.uploadedfile import InMemoryUploadedFile
+import cv2 as cv
+import numpy as np
+import imutils
 
 
 @api_view(['POST'])
@@ -13,3 +21,62 @@ def register(request):
         return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PixelDifference(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, format=None):
+        serializer = ImagesToProcessSerializer(data=request.data)
+
+        if serializer.is_valid():
+            image1 = serializer.validated_data['image1']
+            image2 = serializer.validated_data['image2']
+            image1_data = cv.imdecode(np.fromstring(image1.read(), np.uint8), cv.IMREAD_COLOR)
+            image1_data = cv.resize(image1_data, (600, 360))
+            grayscale_image1_data = cv.cvtColor(image1_data, cv.COLOR_BGR2GRAY)
+            image2_data = cv.imdecode(np.fromstring(image2.read(), np.uint8), cv.IMREAD_COLOR)
+            image2_data = cv.resize(image2_data, (600, 360))
+            grayscale_image2_data = cv.cvtColor(image2_data, cv.COLOR_BGR2GRAY)
+
+            img_height = image1_data.shape[0]
+
+            difference = cv.absdiff(grayscale_image1_data, grayscale_image2_data)
+
+            thresholded = cv.threshold(difference, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)[1]
+            #contours, _ = cv.findContours(thresholded, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+            kernel = np.ones((5, 5), np.uint8)
+            dilate = cv.dilate(thresholded, kernel, iterations=2)
+            contours = cv.findContours(dilate.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+            contours = imutils.grab_contours(contours)
+
+            for contour in contours:
+                if cv.contourArea(contour) > 100:
+                    x, y, w, h = cv.boundingRect(contour)
+                    cv.rectangle(image1_data, (x, y), (x+w, y+h), (0, 0, 255), 2)
+                    cv.rectangle(image2_data, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+            x = np.zeros((img_height, 10, 3), np.uint8)
+            result = np.hstack((image1_data, x, image2_data))
+
+            #result = image1_data.copy()
+            #cv.drawContours(result, contours, -1, (0, 0, 255), 2)
+
+            buffer = cv.imencode(".jpg", result)[1].tostring()
+            result_image_file = InMemoryUploadedFile(
+                BytesIO(buffer),
+                None,
+                'result_image.jpg',
+                'image/jpeg',
+                len(buffer),
+                None
+            )
+            new_image = Image(image=result_image_file)
+            new_image.save()
+            response_data = {
+                "processed_image": new_image.image.url
+            }
+            return Response(data=response_data, status=200)
+        else:
+            return Response(data=serializer.errors, status=500)

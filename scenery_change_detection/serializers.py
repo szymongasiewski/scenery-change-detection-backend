@@ -33,3 +33,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['email'] = user.email
 
         return token
+
+
+class ImagesToProcessSerializer(serializers.Serializer):
+    image1 = serializers.ImageField()
+    image2 = serializers.ImageField()

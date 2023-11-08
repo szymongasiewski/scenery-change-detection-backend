@@ -36,3 +36,7 @@ class User(auth_models.AbstractUser):
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
+
+
+class Image(models.Model):
+    image = models.ImageField(upload_to='images/')
