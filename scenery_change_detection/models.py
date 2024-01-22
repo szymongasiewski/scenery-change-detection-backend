@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy
 from django.contrib.auth import models as auth_models
 from .managers import UserManager
+from rest_framework_simplejwt.tokens import RefreshToken
 
 
 # class UserManager(auth_models.BaseUserManager):
@@ -56,7 +57,11 @@ class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
         return self.email
 
     def tokens(self):
-        pass
+        refresh = RefreshToken.for_user(self)
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token)
+        }
 
 
 class Image(models.Model):

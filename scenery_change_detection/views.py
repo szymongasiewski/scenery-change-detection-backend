@@ -1,8 +1,9 @@
 from rest_framework import status
 from rest_framework.decorators import api_view
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from .serializers import UserRegisterSerializer, ImagesToProcessSerializer
+from .serializers import UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .models import Image
@@ -30,6 +31,25 @@ class RegisterUserView(GenericAPIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class LoginUserView(GenericAPIView):
+    serializer_class = LoginSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+
+        return Response(serializer.data, status.HTTP_200_OK)
+
+
+class TestAuthenticationView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        data = {
+            'msg': 'works'
+        }
+        return Response(data, status.HTTP_200_OK)
 
 # @api_view(['POST'])
 # def register(request):
