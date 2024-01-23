@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from .serializers import UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer
+from .serializers import UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, LogoutUserSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .models import Image
@@ -50,6 +50,25 @@ class TestAuthenticationView(GenericAPIView):
             'msg': 'works'
         }
         return Response(data, status.HTTP_200_OK)
+
+
+# TODO password reset request
+
+# TODO password reset confirm
+
+# TODO set new password
+
+# TODO logout
+
+class LogoutUserView(GenericAPIView):
+    serializer_class = LogoutUserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 # @api_view(['POST'])
 # def register(request):
