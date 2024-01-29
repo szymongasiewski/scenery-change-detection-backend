@@ -20,7 +20,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         fields = ["email", "password", "confirm_password"]
 
     def validate_password(self, password):
-        password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,}$"
+        password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,128}$"
         if not re.match(password_regex, password):
             raise serializers.ValidationError("Password must have minimum 8 characters in length, at least one"
                                               " uppercase English letter, at least one lowercase English letter, "
