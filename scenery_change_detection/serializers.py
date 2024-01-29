@@ -1,20 +1,31 @@
 from rest_framework import serializers
 from .models import User
 from rest_framework.validators import UniqueValidator
+from django.core.validators import EmailValidator
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+import re
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])
     password = serializers.CharField(max_length=128, min_length=8, write_only=True)
     confirm_password = serializers.CharField(max_length=128, min_length=8, write_only=True)
 
     class Meta:
         model = User
         fields = ["email", "password", "confirm_password"]
+
+    def validate_password(self, password):
+        password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,}$"
+        if not re.match(password_regex, password):
+            raise serializers.ValidationError("Password must have minimum 8 characters in length, at least one"
+                                              " uppercase English letter, at least one lowercase English letter, "
+                                              "at least one digit, and at least one special character.")
+        return password
 
     def validate(self, attrs):
         password = attrs.get("password", "")
