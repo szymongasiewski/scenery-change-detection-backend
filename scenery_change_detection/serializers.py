@@ -61,13 +61,30 @@ class LoginSerializer(serializers.ModelSerializer):
         if not user:
             raise AuthenticationFailed("Invalid credentials try again")
 
-        user_tokens = user.tokens()
+        # user_tokens = user.tokens() TODO remove it from model
+        refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
 
-        return {
+        access['email'] = user.email
+
+        # return {
+        #     'email': user.email,
+        #     # 'access_token': str(user_tokens.get('access')),
+        #     # 'refresh_token': str(user_tokens.get('refresh'))
+        #     'access_token': str(access),
+        #     'refresh_token': str(refresh),
+        # }
+
+        response = {
             'email': user.email,
-            'access_token': str(user_tokens.get('access')),
-            'refresh_token': str(user_tokens.get('refresh'))
+            'access_token': str(access),
+            # 'refresh_token': str(refresh),
         }
+
+        request.COOKIES['refresh_token'] = str(refresh)
+        request.META['HTTP_COOKIE'] = f'refresh_token={str(refresh)}'
+
+        return response
 
 
 class LogoutUserSerializer(serializers.Serializer):
