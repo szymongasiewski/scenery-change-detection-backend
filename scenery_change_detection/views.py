@@ -15,6 +15,10 @@ from django.core.files.uploadedfile import InMemoryUploadedFile
 import cv2 as cv
 import numpy as np
 import imutils
+from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.tokens import Token
+from rest_framework_simplejwt.state import token_backend
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 
 class RegisterUserView(GenericAPIView):
@@ -71,18 +75,41 @@ class RefreshTokenView(GenericAPIView):
 
     def post(self, request):
         refresh_token = request.COOKIES.get('refresh_token')
-        print(request.COOKIES)
+        print(f"Refresh token: {refresh_token}")
 
         if refresh_token is None:
             return Response({'error': 'No refresh token provided'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            token = RefreshToken(refresh_token)
-            access_token = str(token.access_token)
+            decoded_data = token_backend.decode(refresh_token)
+            user_id = decoded_data.get('user_id')
+            user_instance = get_user_model()
+            user = user_instance.objects.get(id=user_id)
+            print(user.email)
+            refresh = RefreshToken.for_user(user)
 
-            response = Response({'access': access_token}, status=status.HTTP_200_OK)
+
+
+            # token = RefreshToken(refresh_token)
+            # access_token = str(token.access_token)
+            #
+            # decoded_data = Token(access_token).payload
+            #
+            # # Get the user's ID from the decoded data
+            # user_id = decoded_data.get('user_id')
+            #
+            # # Get the user instance
+            # User = get_user_model()
+            # user = User.objects.get(id=user_id)
+            # print(user.email)
+
+            response = Response({
+                'access': str(refresh.access_token),
+                'email': user.email
+            }, status=status.HTTP_200_OK)
             return response
-        except TokenError:
+        except TokenError as e:
+            print(f"Token error: {e}")
             return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -92,17 +119,33 @@ class RefreshTokenView(GenericAPIView):
 
 # TODO set new password
 
-# TODO logout
+# class LogoutUserView(GenericAPIView):
+#     serializer_class = LogoutUserSerializer
+#     permission_classes = [IsAuthenticated]
+#
+#     def post(self, request):
+#         serializer = self.serializer_class(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         serializer.save()
+#         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class LogoutUserView(GenericAPIView):
-    serializer_class = LogoutUserSerializer
-    permission_classes = [IsAuthenticated]
-
     def post(self, request):
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        refresh_token = request.COOKIES.get('refresh_token')
+
+        if refresh_token is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        try:
+            token = RefreshToken(refresh_token)
+            outstanding_token = OutstandingToken.objects.filter(token=token).first()
+            if outstanding_token is not None:
+                BlacklistedToken.objects.create(token=outstanding_token)
+            response = Response(status=status.HTTP_204_NO_CONTENT)
+            response.delete_cookie('refresh_token')
+            return response
+        except TokenError:
+            return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
 
 # @api_view(['POST'])
 # def register(request):
