@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
@@ -6,6 +7,8 @@ from rest_framework.response import Response
 from .serializers import UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, LogoutUserSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from .models import Image
 from io import BytesIO
 from django.core.files.uploadedfile import InMemoryUploadedFile
@@ -46,7 +49,9 @@ class LoginUserView(GenericAPIView):
             key='refresh_token',
             value=request.COOKIES.get('refresh_token'),
             httponly=True,
-            samesite='Strict'
+            samesite='None',
+            secure=True,
+            max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()
         )
 
         return response
@@ -60,6 +65,25 @@ class TestAuthenticationView(GenericAPIView):
             'msg': 'works'
         }
         return Response(data, status.HTTP_200_OK)
+
+
+class RefreshTokenView(GenericAPIView):
+
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
+        print(request.COOKIES)
+
+        if refresh_token is None:
+            return Response({'error': 'No refresh token provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            token = RefreshToken(refresh_token)
+            access_token = str(token.access_token)
+
+            response = Response({'access': access_token}, status=status.HTTP_200_OK)
+            return response
+        except TokenError:
+            return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # TODO password reset request
