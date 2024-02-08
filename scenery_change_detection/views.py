@@ -1,23 +1,19 @@
 from django.conf import settings
 from rest_framework import status
-from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from .serializers import UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, LogoutUserSerializer
+from .serializers import UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.exceptions import TokenError
 from .models import Image
 from io import BytesIO
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import cv2 as cv
 import numpy as np
 import imutils
-from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.tokens import Token
-from rest_framework_simplejwt.state import token_backend
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 
@@ -46,7 +42,6 @@ class LoginUserView(GenericAPIView):
         serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        # return Response(serializer.data, status.HTTP_200_OK)
         response = Response(serializer.data, status.HTTP_200_OK)
 
         response.set_cookie(
@@ -72,45 +67,17 @@ class TestAuthenticationView(GenericAPIView):
 
 
 class RefreshTokenView(GenericAPIView):
+    serializer_class = RefreshTokenSerializer
 
     def post(self, request):
-        refresh_token = request.COOKIES.get('refresh_token')
-        print(f"Refresh token: {refresh_token}")
-
-        if refresh_token is None:
-            return Response({'error': 'No refresh token provided'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            decoded_data = token_backend.decode(refresh_token)
-            user_id = decoded_data.get('user_id')
-            user_instance = get_user_model()
-            user = user_instance.objects.get(id=user_id)
-            print(user.email)
-            refresh = RefreshToken.for_user(user)
-
-
-
-            # token = RefreshToken(refresh_token)
-            # access_token = str(token.access_token)
-            #
-            # decoded_data = Token(access_token).payload
-            #
-            # # Get the user's ID from the decoded data
-            # user_id = decoded_data.get('user_id')
-            #
-            # # Get the user instance
-            # User = get_user_model()
-            # user = User.objects.get(id=user_id)
-            # print(user.email)
-
+        serializer = self.serializer_class(data={}, context={'request': request})
+        if serializer.is_valid(raise_exception=True):
             response = Response({
-                'access': str(refresh.access_token),
-                'email': user.email
+                'access': serializer.validated_data['access'],
+                'email': serializer.validated_data['email']
             }, status=status.HTTP_200_OK)
             return response
-        except TokenError as e:
-            print(f"Token error: {e}")
-            return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # TODO password reset request
@@ -118,16 +85,6 @@ class RefreshTokenView(GenericAPIView):
 # TODO password reset confirm
 
 # TODO set new password
-
-# class LogoutUserView(GenericAPIView):
-#     serializer_class = LogoutUserSerializer
-#     permission_classes = [IsAuthenticated]
-#
-#     def post(self, request):
-#         serializer = self.serializer_class(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class LogoutUserView(GenericAPIView):
     def post(self, request):
@@ -146,16 +103,6 @@ class LogoutUserView(GenericAPIView):
             return response
         except TokenError:
             return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
-
-# @api_view(['POST'])
-# def register(request):
-#     serializer = RegisterSerializer(data=request.data)
-#
-#     if serializer.is_valid():
-#         user = serializer.save()
-#         return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
-#
-#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PixelDifference(APIView):

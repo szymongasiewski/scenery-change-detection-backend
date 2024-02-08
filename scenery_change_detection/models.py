@@ -5,40 +5,6 @@ from .managers import UserManager
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
-# class UserManager(auth_models.BaseUserManager):
-#
-#     def create_user(self, email: str, password: str, is_staff=False, is_superuser=False) -> 'User':
-#         if not email:
-#             raise ValueError('User must have email')
-#
-#         user = self.model(email=self.normalize_email(email))
-#         user.set_password(password)
-#         user.is_active = True
-#         user.is_staff = is_staff
-#         user.is_superuser = is_superuser
-#         user.save()
-#
-#         return user
-#
-#     def create_superuser(self, email: str, password: str) -> 'User':
-#         user = self.create_user(email=email, password=password, is_staff=True, is_superuser=True)
-#         user.save()
-#
-#         return user
-
-
-# class User(auth_models.AbstractUser):
-#     email = models.EmailField(max_length=255, unique=True)
-#     password = models.CharField(max_length=255)
-#     username = None
-#     first_name = None
-#     last_name = None
-#
-#     objects = UserManager()
-#
-#     USERNAME_FIELD = 'email'
-#     REQUIRED_FIELDS = []
-
 class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
     email = models.EmailField(max_length=255, unique=True, verbose_name=gettext_lazy("Email Address"))
     is_staff = models.BooleanField(default=False)
@@ -58,9 +24,12 @@ class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
 
     def tokens(self):
         refresh = RefreshToken.for_user(self)
+        access = refresh.access_token
+        access['email'] = self.email
+
         return {
             'refresh': str(refresh),
-            'access': str(refresh.access_token)
+            'access': str(access)
         }
 
 
