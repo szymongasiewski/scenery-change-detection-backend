@@ -7,15 +7,12 @@ from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProce
                           LogoutSerializer)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import TokenError
 from .models import Image
 from io import BytesIO
 from django.core.files.uploadedfile import InMemoryUploadedFile
 import cv2 as cv
 import numpy as np
 import imutils
-from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 
 class RegisterUserView(GenericAPIView):
@@ -81,11 +78,11 @@ class RefreshTokenView(GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# TODO password reset request
+# TODO password reset request?
 
-# TODO password reset confirm
+# TODO password reset confirm?
 
-# TODO set new password
+# TODO set new password?
 
 class LogoutUserView(GenericAPIView):
     serializer_class = LogoutSerializer
@@ -96,24 +93,6 @@ class LogoutUserView(GenericAPIView):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         response.delete_cookie('refresh_token')
         return response
-
-# class LogoutUserView(GenericAPIView):
-#     def post(self, request):
-#         refresh_token = request.COOKIES.get('refresh_token')
-#
-#         if refresh_token is None:
-#             return Response(status=status.HTTP_204_NO_CONTENT)
-#
-#         try:
-#             token = RefreshToken(refresh_token)
-#             outstanding_token = OutstandingToken.objects.filter(token=token).first()
-#             if outstanding_token is not None:
-#                 BlacklistedToken.objects.create(token=outstanding_token)
-#             response = Response(status=status.HTTP_204_NO_CONTENT)
-#             response.delete_cookie('refresh_token')
-#             return response
-#         except TokenError:
-#             return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PixelDifference(APIView):
