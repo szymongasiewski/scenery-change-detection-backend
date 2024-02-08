@@ -1,7 +1,10 @@
+from django.conf import settings
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from .serializers import RegisterSerializer, ImagesToProcessSerializer
+from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
+                          LogoutSerializer)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .models import Image
@@ -12,15 +15,84 @@ import numpy as np
 import imutils
 
 
-@api_view(['POST'])
-def register(request):
-    serializer = RegisterSerializer(data=request.data)
+class RegisterUserView(GenericAPIView):
+    serializer_class = UserRegisterSerializer
 
-    if serializer.is_valid():
-        user = serializer.save()
-        return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
+    def post(self, request):
+        user_data = request.data
+        serializer = self.serializer_class(data=user_data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            user = serializer.data
+            # TODO send email?
+            return Response({
+                "data": user,
+                "message": "Thanks for singing up"
+            }, status=status.HTTP_201_CREATED)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoginUserView(GenericAPIView):
+    serializer_class = LoginSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+
+        response = Response(serializer.data, status.HTTP_200_OK)
+
+        response.set_cookie(
+            key='refresh_token',
+            value=request.COOKIES.get('refresh_token'),
+            httponly=True,
+            samesite='None',
+            secure=True,
+            max_age=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()
+        )
+
+        return response
+
+
+class TestAuthenticationView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        data = {
+            'msg': 'works'
+        }
+        return Response(data, status.HTTP_200_OK)
+
+
+class RefreshTokenView(GenericAPIView):
+    serializer_class = RefreshTokenSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data={}, context={'request': request})
+        if serializer.is_valid(raise_exception=True):
+            response = Response({
+                'access': serializer.validated_data['access'],
+                'email': serializer.validated_data['email']
+            }, status=status.HTTP_200_OK)
+            return response
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# TODO password reset request?
+
+# TODO password reset confirm?
+
+# TODO set new password?
+
+class LogoutUserView(GenericAPIView):
+    serializer_class = LogoutSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data={}, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        response.delete_cookie('refresh_token')
+        return response
 
 
 class PixelDifference(APIView):
