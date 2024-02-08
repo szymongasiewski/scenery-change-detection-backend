@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, InputImage, OutputImage
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
@@ -9,6 +9,7 @@ from rest_framework_simplejwt.state import token_backend
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from PIL import Image as PilImage
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -117,6 +118,37 @@ class LogoutSerializer(serializers.Serializer):
             raise serializers.ValidationError('Invalid refresh token')
 
         return attrs
+
+
+class TestImagesModelSerializer(serializers.Serializer):
+    input_image1 = serializers.ImageField()
+    input_image2 = serializers.ImageField()
+
+    def validate_input_image1(self, value):
+        try:
+            PilImage.open(value)
+        except IOError:
+            raise serializers.ValidationError("Invalid image file for input_image1")
+        return value
+
+    def validate_input_image2(self, value):
+        try:
+            PilImage.open(value)
+        except IOError:
+            raise serializers.ValidationError("Invalid image file for input_image2")
+        return value
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+
+        output = OutputImage(image=validated_data['input_image1'], user=user)
+        output.save()
+        input1 = InputImage(image=validated_data['input_image1'], user=user, output_image=output)
+        input1.save()
+        input2 = InputImage(image=validated_data['input_image2'], user=user, output_image=output)
+        input2.save()
+
+        return output, input1, input2
 
 
 class ImagesToProcessSerializer(serializers.Serializer):

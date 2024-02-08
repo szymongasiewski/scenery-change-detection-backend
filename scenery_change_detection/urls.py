@@ -8,4 +8,5 @@ urlpatterns = [
     path('test/', views.TestAuthenticationView.as_view(), name='test'),
     path('token/refresh/', views.RefreshTokenView.as_view(), name='token_refresh'),
     path('images/', views.PixelDifference.as_view(), name='images'),
+    path('testimg/', views.TestImagesModelView.as_view(), name='testimg'),
 ]

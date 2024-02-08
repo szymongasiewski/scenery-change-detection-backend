@@ -35,3 +35,24 @@ class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
 
 class Image(models.Model):
     image = models.ImageField(upload_to='images/')
+
+
+def user_directory_path_input_images(instance, filename):
+    return 'user_{0}/input_images/{1}'.format(instance.user.id, filename)
+
+
+def user_directory_path_output_images(instance, filename):
+    return 'user_{0}/output_images/{1}'.format(instance.user.id, filename)
+
+
+class OutputImage(models.Model):
+    image = models.ImageField(upload_to=user_directory_path_output_images)
+    date_created = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, related_name='output_images', on_delete=models.CASCADE)
+
+
+class InputImage(models.Model):
+    image = models.ImageField(upload_to=user_directory_path_input_images)
+    output_image = models.ForeignKey(OutputImage, related_name='input_images', on_delete=models.CASCADE)
+    date_created = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, related_name='input_images', on_delete=models.CASCADE)
