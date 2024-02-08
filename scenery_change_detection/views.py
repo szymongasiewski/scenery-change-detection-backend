@@ -3,7 +3,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from .serializers import UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer
+from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
+                          LogoutSerializer)
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -87,22 +88,32 @@ class RefreshTokenView(GenericAPIView):
 # TODO set new password
 
 class LogoutUserView(GenericAPIView):
+    serializer_class = LogoutSerializer
+
     def post(self, request):
-        refresh_token = request.COOKIES.get('refresh_token')
+        serializer = self.serializer_class(data={}, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        response.delete_cookie('refresh_token')
+        return response
 
-        if refresh_token is None:
-            return Response(status=status.HTTP_204_NO_CONTENT)
-
-        try:
-            token = RefreshToken(refresh_token)
-            outstanding_token = OutstandingToken.objects.filter(token=token).first()
-            if outstanding_token is not None:
-                BlacklistedToken.objects.create(token=outstanding_token)
-            response = Response(status=status.HTTP_204_NO_CONTENT)
-            response.delete_cookie('refresh_token')
-            return response
-        except TokenError:
-            return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
+# class LogoutUserView(GenericAPIView):
+#     def post(self, request):
+#         refresh_token = request.COOKIES.get('refresh_token')
+#
+#         if refresh_token is None:
+#             return Response(status=status.HTTP_204_NO_CONTENT)
+#
+#         try:
+#             token = RefreshToken(refresh_token)
+#             outstanding_token = OutstandingToken.objects.filter(token=token).first()
+#             if outstanding_token is not None:
+#                 BlacklistedToken.objects.create(token=outstanding_token)
+#             response = Response(status=status.HTTP_204_NO_CONTENT)
+#             response.delete_cookie('refresh_token')
+#             return response
+#         except TokenError:
+#             return Response({'error': 'Invalid refresh token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PixelDifference(APIView):

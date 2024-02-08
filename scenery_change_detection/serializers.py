@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.state import token_backend
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -97,6 +98,25 @@ class RefreshTokenSerializer(serializers.Serializer):
             return attrs
         except TokenError:
             raise serializers.ValidationError('Invalid refresh token')
+
+
+class LogoutSerializer(serializers.Serializer):
+    def validate(self, attrs):
+        request = self.context.get('request')
+        refresh_token = request.COOKIES.get('refresh_token')
+
+        if refresh_token is None:
+            return attrs
+
+        try:
+            token = RefreshToken(refresh_token)
+            outstanding_token = OutstandingToken.objects.filter(token=token).first()
+            if outstanding_token is None:
+                BlacklistedToken.objects.create(token=outstanding_token)
+        except TokenError:
+            raise serializers.ValidationError('Invalid refresh token')
+
+        return attrs
 
 
 class ImagesToProcessSerializer(serializers.Serializer):
