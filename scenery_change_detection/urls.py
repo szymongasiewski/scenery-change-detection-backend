@@ -10,4 +10,5 @@ urlpatterns = [
     path('images/', views.PixelDifference.as_view(), name='images'),
     path('testimg/', views.TestImagesModelView.as_view(), name='testimg'),
     path('user/output-images/', views.UserOutputImagesView.as_view(), name="user-output-images"),
+    path('user/delete/', views.DeleteUserView.as_view(), name='user-delete'),
 ]

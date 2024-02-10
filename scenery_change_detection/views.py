@@ -8,7 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
-                          LogoutSerializer, TestImagesModelSerializer, OutputImageSerializer)
+                          LogoutSerializer, TestImagesModelSerializer, OutputImageSerializer, DeleteUserSerializer)
 from .models import OutputImage, Image
 from io import BytesIO
 import cv2 as cv
@@ -53,6 +53,17 @@ class LoginUserView(GenericAPIView):
         )
 
         return response
+
+
+class DeleteUserView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = DeleteUserSerializer
+
+    def delete(self, request):
+        serializer = self.serializer_class(data={}, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'detail': 'User deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
 
 
 class TestAuthenticationView(GenericAPIView):

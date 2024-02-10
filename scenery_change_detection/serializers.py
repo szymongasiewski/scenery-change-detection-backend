@@ -115,6 +115,27 @@ class LogoutSerializer(serializers.Serializer):
         return attrs
 
 
+class DeleteUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = []
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if not request.user.is_authenticated:
+            raise serializers.ValidationError('User is not authenticated.')
+        return attrs
+
+    def save(self, **kwargs):
+        request = self.context.get('request')
+        logout_serializer = LogoutSerializer(data={}, context={'request': request})
+        logout_serializer.is_valid(raise_exception=True)
+        try:
+            request.user.delete()
+        except Exception as e:
+            raise serializers.ValidationError({'detail': str(e)})
+
+
 class TestImagesModelSerializer(serializers.Serializer):
     input_image1 = serializers.ImageField()
     input_image2 = serializers.ImageField()
