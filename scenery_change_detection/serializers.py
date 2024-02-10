@@ -111,9 +111,7 @@ class LogoutSerializer(serializers.Serializer):
 
         try:
             token = RefreshToken(refresh_token)
-            outstanding_token = OutstandingToken.objects.filter(token=token).first()
-            if outstanding_token is None:
-                BlacklistedToken.objects.create(token=outstanding_token)
+            token.blacklist()
         except TokenError:
             raise serializers.ValidationError('Invalid refresh token')
 
