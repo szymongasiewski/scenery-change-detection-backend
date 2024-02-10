@@ -1,8 +1,8 @@
 from django.db import models
 from django.utils.translation import gettext_lazy
 from django.contrib.auth import models as auth_models
-from .managers import UserManager
 from rest_framework_simplejwt.tokens import RefreshToken
+from .managers import UserManager
 
 
 class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):

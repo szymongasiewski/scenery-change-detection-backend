@@ -1,15 +1,15 @@
 from rest_framework import serializers
-from .models import User, InputImage, OutputImage
 from rest_framework.validators import UniqueValidator
-from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
-import re
+from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.state import token_backend
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+import re
 from PIL import Image as PilImage
+from .models import User, InputImage, OutputImage
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):

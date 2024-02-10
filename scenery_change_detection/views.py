@@ -1,17 +1,16 @@
 from django.conf import settings
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
-from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
-                          LogoutSerializer, TestImagesModelSerializer, OutputImageSerializer)
-from .models import OutputImage
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
-from .models import Image
+from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
+                          LogoutSerializer, TestImagesModelSerializer, OutputImageSerializer)
+from .models import OutputImage, Image
 from io import BytesIO
-from django.core.files.uploadedfile import InMemoryUploadedFile
 import cv2 as cv
 import numpy as np
 import imutils
