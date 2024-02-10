@@ -41,7 +41,7 @@ class LoginUserView(GenericAPIView):
         serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        response = Response(serializer.data, status.HTTP_200_OK)
+        response = Response(serializer.validated_data, status.HTTP_200_OK)
 
         response.set_cookie(
             key='refresh_token',

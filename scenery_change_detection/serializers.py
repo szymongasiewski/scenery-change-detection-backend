@@ -6,7 +6,6 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.state import token_backend
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 import re
 from PIL import Image as PilImage
 from .models import User, InputImage, OutputImage
@@ -47,12 +46,10 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(max_length=255)
     password = serializers.CharField(max_length=128, write_only=True)
-    access_token = serializers.CharField(max_length=255, read_only=True)
-    refresh_token = serializers.CharField(max_length=255, read_only=True)
 
     class Meta:
         model = User
-        fields = ["email", "password", "access_token", "refresh_token"]
+        fields = ["email", "password"]
 
     def validate(self, attrs):
         email = attrs.get("email")
