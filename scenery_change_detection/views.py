@@ -1,10 +1,12 @@
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.generics import GenericAPIView
+from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
 from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
-                          LogoutSerializer, TestImagesModelSerializer)
+                          LogoutSerializer, TestImagesModelSerializer, OutputImageSerializer)
+from .models import OutputImage
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .models import Image
@@ -75,6 +77,16 @@ class TestImagesModelView(GenericAPIView):
             serializer.save()
             return Response(status=status.HTTP_200_OK)
         return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserOutputImagesView(ListAPIView):
+    serializer_class = OutputImageSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        return OutputImage.objects.filter(user=user).prefetch_related('input_images')
 
 
 class RefreshTokenView(GenericAPIView):

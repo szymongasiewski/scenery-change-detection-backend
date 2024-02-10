@@ -151,6 +151,20 @@ class TestImagesModelSerializer(serializers.Serializer):
         return output, input1, input2
 
 
+class InputImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InputImage
+        fields = ['image', 'date_created']
+
+
+class OutputImageSerializer(serializers.ModelSerializer):
+    input_images = InputImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = OutputImage
+        fields = ['image', 'date_created', 'input_images']
+
+
 class ImagesToProcessSerializer(serializers.Serializer):
     image1 = serializers.ImageField()
     image2 = serializers.ImageField()

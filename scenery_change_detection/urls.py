@@ -9,4 +9,5 @@ urlpatterns = [
     path('token/refresh/', views.RefreshTokenView.as_view(), name='token_refresh'),
     path('images/', views.PixelDifference.as_view(), name='images'),
     path('testimg/', views.TestImagesModelView.as_view(), name='testimg'),
+    path('user/output-images/', views.UserOutputImagesView.as_view(), name="user-output-images"),
 ]
