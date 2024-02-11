@@ -8,7 +8,8 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
-                          LogoutSerializer, TestImagesModelSerializer, OutputImageSerializer, DeleteUserSerializer)
+                          LogoutSerializer, TestImagesModelSerializer, OutputImageSerializer, ChangePasswordSerializer,
+                          DeleteUserSerializer)
 from .models import OutputImage, Image
 from io import BytesIO
 import cv2 as cv
@@ -117,7 +118,17 @@ class RefreshTokenView(GenericAPIView):
 
 # TODO password reset confirm?
 
-# TODO set new password?
+class ChangePasswordView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChangePasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Password changed successfully."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LogoutUserView(GenericAPIView):
     serializer_class = LogoutSerializer

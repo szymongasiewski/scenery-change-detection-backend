@@ -136,6 +136,44 @@ class DeleteUserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'detail': str(e)})
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(max_length=128, min_length=8, write_only=True, required=True)
+    new_password = serializers.CharField(max_length=128, min_length=8, write_only=True, required=True)
+    confirm_new_password = serializers.CharField(max_length=128, min_length=8, write_only=True, required=True)
+
+    def validate_new_password(self, value):
+        password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,128}$"
+        if not re.match(password_regex, value):
+            raise serializers.ValidationError("Password must have minimum 8 characters in length, at least one"
+                                              " uppercase English letter, at least one lowercase English letter, "
+                                              "at least one digit, and at least one special character.")
+        return value
+
+    def validate_old_password(self, value):
+        request = self.context.get('request')
+        if not request.user.check_password(value):
+            raise serializers.ValidationError("Wrong password.")
+        return value
+
+    def validate(self, attrs):
+        old_password = attrs['old_password']
+        new_password = attrs['new_password']
+        confirm_new_password = attrs['confirm_new_password']
+
+        if new_password == old_password:
+            raise serializers.ValidationError("New password must be different from the old password.")
+
+        if new_password != confirm_new_password:
+            raise serializers.ValidationError("Passwords do not match.")
+
+        return attrs
+
+    def save(self, **kwargs):
+        request = self.context.get('request')
+        request.user.set_password(self.validated_data.get('new_password'))
+        request.user.save()
+
+
 class TestImagesModelSerializer(serializers.Serializer):
     input_image1 = serializers.ImageField()
     input_image2 = serializers.ImageField()
