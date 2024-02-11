@@ -90,7 +90,7 @@ class TestImagesModelView(GenericAPIView):
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserOutputImagesView(ListAPIView):
+class UserHistoryImagesView(ListAPIView):
     serializer_class = OutputImageSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = PageNumberPagination
