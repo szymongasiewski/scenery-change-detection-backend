@@ -33,6 +33,7 @@ class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
         }
 
 
+# TODO Delete this model later
 class Image(models.Model):
     image = models.ImageField(upload_to='images/')
 

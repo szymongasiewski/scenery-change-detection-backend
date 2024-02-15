@@ -136,8 +136,6 @@ class DeleteUserSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         request = self.context.get('request')
-        # logout_serializer = LogoutSerializer(data={}, context={'request': request})
-        # logout_serializer.is_valid(raise_exception=True)
         try:
             request.user.delete()
         except Exception as e:
