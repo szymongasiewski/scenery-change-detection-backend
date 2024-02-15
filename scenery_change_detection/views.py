@@ -102,6 +102,7 @@ class UserHistoryImagesView(ListAPIView):
 
 class RefreshTokenView(GenericAPIView):
     serializer_class = RefreshTokenSerializer
+    authentication_classes = []
 
     def post(self, request):
         serializer = self.serializer_class(data={}, context={'request': request})
