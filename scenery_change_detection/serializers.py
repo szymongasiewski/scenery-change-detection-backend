@@ -116,9 +116,17 @@ class LogoutSerializer(serializers.Serializer):
 
 
 class DeleteUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(max_length=128, min_length=8, write_only=True)
+
     class Meta:
         model = User
-        fields = []
+        fields = ['password']
+
+    def validate_password(self, value):
+        request = self.context.get('request')
+        if not request.user.check_password(value):
+            raise serializers.ValidationError("Incorrect password.")
+        return value
 
     def validate(self, attrs):
         request = self.context.get('request')
@@ -128,8 +136,8 @@ class DeleteUserSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         request = self.context.get('request')
-        logout_serializer = LogoutSerializer(data={}, context={'request': request})
-        logout_serializer.is_valid(raise_exception=True)
+        # logout_serializer = LogoutSerializer(data={}, context={'request': request})
+        # logout_serializer.is_valid(raise_exception=True)
         try:
             request.user.delete()
         except Exception as e:

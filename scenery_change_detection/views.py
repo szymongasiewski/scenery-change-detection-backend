@@ -61,10 +61,12 @@ class DeleteUserView(GenericAPIView):
     serializer_class = DeleteUserSerializer
 
     def delete(self, request):
-        serializer = self.serializer_class(data={}, context={'request': request})
+        serializer = self.serializer_class(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({'detail': 'User deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+        response = Response({'detail': 'User deleted successfully.'}, status=status.HTTP_200_OK)
+        response.delete_cookie('refresh_token')
+        return response
 
 
 class TestAuthenticationView(GenericAPIView):
