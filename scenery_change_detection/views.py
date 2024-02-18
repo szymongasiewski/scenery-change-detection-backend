@@ -153,14 +153,14 @@ class TestImageRequestSendingView(GenericAPIView):
         if serializer.is_valid(raise_exception=True):
             # image_request,
             input_image1, input_image2, output_image = serializer.save()
-            image_request_serializer = ImageRequestSerializer(image_request)
-            input_image1_serializer = InputImageSerializer(input_image1)
-            input_image2_serializer = InputImageSerializer(input_image2)
+            # image_request_serializer = ImageRequestSerializer(image_request)
+            # input_image1_serializer = InputImageSerializer(input_image1)
+            # input_image2_serializer = InputImageSerializer(input_image2)
             output_image_serializer = OutputImageSerializer(output_image)
             response_data = {
-                'image_request': image_request_serializer.data,
-                'input_image1': input_image1_serializer.data,
-                'input_image2': input_image2_serializer.data,
+                # 'image_request': image_request_serializer.data,
+                # 'input_image1': input_image1_serializer.data,
+                # 'input_image2': input_image2_serializer.data,
                 'output_image': output_image_serializer.data,
             }
             processing_log = ProcessingLog.objects.create(
