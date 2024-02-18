@@ -8,7 +8,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 import re
 from PIL import Image as PilImage
-from .models import User, InputImage, OutputImage, ImageRequest
+from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog
+from rest_framework import status
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -200,11 +201,16 @@ class ImageRequestSerializer(serializers.ModelSerializer):
 
 class RestrictedImageField(serializers.ImageField):
     def to_internal_value(self, data):
-        print('called')
         if data is None or not data:
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
             image_request.save()
+            processing_log = ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: No file was submitted.'
+            )
             raise serializers.ValidationError('No file was submitted.')
         try:
             image = PilImage.open(data)
@@ -214,7 +220,12 @@ class RestrictedImageField(serializers.ImageField):
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
             image_request.save()
-            print('works')
+            processing_log = ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid file format. Only JPEG, JPG and PNG are supported.'
+            )
             raise serializers.ValidationError('Invalid file format. Only JPEG, JPG and PNG are supported.')
         return data
 
@@ -226,26 +237,57 @@ class TestImageRequestSendingSerializer(serializers.Serializer):
     def validate(self, attrs):
         image_request = self.context.get('image_request')
 
-        try:
-            if not attrs['input_image1']:
-                raise serializers.ValidationError('Invalid input_image1')
-            if not attrs['input_image2']:
-                raise serializers.ValidationError('Invalid input_image2')
-        except serializers.ValidationError:
+        if not attrs['input_image1']:
             image_request.status = 'FAILED'
             image_request.save()
-            raise
+            processing_log = ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid input_image1.'
+            )
+            raise serializers.ValidationError('Invalid input_image1')
+        if not attrs['input_image2']:
+            image_request.status = 'FAILED'
+            image_request.save()
+            processing_log = ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid input_image2.'
+            )
+            raise serializers.ValidationError('Invalid input_image2')
 
         image_request.status = 'PROCESSING'
         image_request.save()
+        processing_log = ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Provided files are valid. Processing started.'
+        )
 
         return attrs
 
     def create(self, validated_data):
         image_request = self.context.get('image_request')
         input_image1 = InputImage.objects.create(image=validated_data['input_image1'], image_request=image_request)
+        processing_log = ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created InputImage object with id: {input_image1.id}.'
+        )
         input_image2 = InputImage.objects.create(image=validated_data['input_image2'], image_request=image_request)
+        processing_log = ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created InputImage object with id: {input_image2.id}.'
+        )
         output_image = OutputImage.objects.create(image=validated_data['input_image1'], image_request=image_request)
+        processing_log = ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created OutputImage object with id: {output_image.id}.'
+        )
         image_request.status = 'COMPLETED'
         image_request.save()
         return input_image1, input_image2, output_image

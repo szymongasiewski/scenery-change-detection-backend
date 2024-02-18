@@ -11,12 +11,14 @@ from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProce
                           LogoutSerializer, OutputImageSerializer, ChangePasswordSerializer,
                           DeleteUserSerializer, TestImageRequestSendingSerializer, ImageRequestSerializer,
                           InputImageSerializer)
-from .models import OutputImage, ImageRequest #, Image
+from .models import OutputImage, ImageRequest, ProcessingLog #, Image
 from io import BytesIO
 import cv2 as cv
 import numpy as np
 import imutils
 from rest_framework import serializers
+from itertools import chain
+import json
 
 
 class RegisterUserView(GenericAPIView):
@@ -140,6 +142,11 @@ class TestImageRequestSendingView(GenericAPIView):
 
     def post(self, request):
         image_request = ImageRequest.objects.create(user=request.user, status='PENDING')
+        processing_log = ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Sent by user with id: {request.user.id}.'
+        )
         serializer = self.serializer_class(data=request.data, context={
             'request': request,
             'image_request': image_request})
@@ -150,12 +157,19 @@ class TestImageRequestSendingView(GenericAPIView):
             input_image1_serializer = InputImageSerializer(input_image1)
             input_image2_serializer = InputImageSerializer(input_image2)
             output_image_serializer = OutputImageSerializer(output_image)
-            return Response({
+            response_data = {
                 'image_request': image_request_serializer.data,
                 'input_image1': input_image1_serializer.data,
                 'input_image2': input_image2_serializer.data,
                 'output_image': output_image_serializer.data,
-            }, status=status.HTTP_200_OK)
+            }
+            processing_log = ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_200_OK)}.'
+                            f' Response message: {json.dumps(response_data)}.'
+            )
+            return Response(response_data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
