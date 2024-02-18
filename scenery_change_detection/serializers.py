@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 import re
 from PIL import Image as PilImage
-from .models import User, InputImage, OutputImage
+from .models import User, InputImage, OutputImage, ImageRequest
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -180,49 +180,75 @@ class ChangePasswordSerializer(serializers.Serializer):
         request.user.save()
 
 
-class TestImagesModelSerializer(serializers.Serializer):
-    input_image1 = serializers.ImageField()
-    input_image2 = serializers.ImageField()
-
-    def validate_input_image1(self, value):
-        try:
-            PilImage.open(value)
-        except IOError:
-            raise serializers.ValidationError("Invalid image file for input_image1")
-        return value
-
-    def validate_input_image2(self, value):
-        try:
-            PilImage.open(value)
-        except IOError:
-            raise serializers.ValidationError("Invalid image file for input_image2")
-        return value
-
-    def create(self, validated_data):
-        user = self.context['request'].user
-
-        output = OutputImage(image=validated_data['input_image1'], user=user)
-        output.save()
-        input1 = InputImage(image=validated_data['input_image1'], user=user, output_image=output)
-        input1.save()
-        input2 = InputImage(image=validated_data['input_image2'], user=user, output_image=output)
-        input2.save()
-
-        return output, input1, input2
-
-
 class InputImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = InputImage
-        fields = ['image', 'date_created']
+        fields = '__all__'
 
 
 class OutputImageSerializer(serializers.ModelSerializer):
-    input_images = InputImageSerializer(many=True, read_only=True)
-
     class Meta:
         model = OutputImage
-        fields = ['image', 'date_created', 'input_images']
+        fields = '__all__'
+
+
+class ImageRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ImageRequest
+        fields = '__all__'
+
+
+class RestrictedImageField(serializers.ImageField):
+    def to_internal_value(self, data):
+        print('called')
+        if data is None or not data:
+            image_request = self.context.get('image_request')
+            image_request.status = 'FAILED'
+            image_request.save()
+            raise serializers.ValidationError('No file was submitted.')
+        try:
+            image = PilImage.open(data)
+            if image.format not in ['JPEG', 'JPG', 'PNG']:
+                raise IOError
+        except IOError:
+            image_request = self.context.get('image_request')
+            image_request.status = 'FAILED'
+            image_request.save()
+            print('works')
+            raise serializers.ValidationError('Invalid file format. Only JPEG, JPG and PNG are supported.')
+        return data
+
+
+class TestImageRequestSendingSerializer(serializers.Serializer):
+    input_image1 = RestrictedImageField()
+    input_image2 = RestrictedImageField()
+
+    def validate(self, attrs):
+        image_request = self.context.get('image_request')
+
+        try:
+            if not attrs['input_image1']:
+                raise serializers.ValidationError('Invalid input_image1')
+            if not attrs['input_image2']:
+                raise serializers.ValidationError('Invalid input_image2')
+        except serializers.ValidationError:
+            image_request.status = 'FAILED'
+            image_request.save()
+            raise
+
+        image_request.status = 'PROCESSING'
+        image_request.save()
+
+        return attrs
+
+    def create(self, validated_data):
+        image_request = self.context.get('image_request')
+        input_image1 = InputImage.objects.create(image=validated_data['input_image1'], image_request=image_request)
+        input_image2 = InputImage.objects.create(image=validated_data['input_image2'], image_request=image_request)
+        output_image = OutputImage.objects.create(image=validated_data['input_image1'], image_request=image_request)
+        image_request.status = 'COMPLETED'
+        image_request.save()
+        return input_image1, input_image2, output_image
 
 
 class ImagesToProcessSerializer(serializers.Serializer):
