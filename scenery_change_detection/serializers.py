@@ -184,19 +184,28 @@ class ChangePasswordSerializer(serializers.Serializer):
 class InputImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = InputImage
-        fields = '__all__'
+        fields = ['image']
 
 
 class OutputImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = OutputImage
-        fields = '__all__'
+        fields = ['image']
 
 
 class ImageRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = ImageRequest
         fields = '__all__'
+
+
+class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
+    input_images = InputImageSerializer(many=True, read_only=True)
+    output_image = OutputImageSerializer(read_only=True)
+
+    class Meta:
+        model = ImageRequest
+        fields = ['id', 'created_at', 'status', 'input_images', 'output_image']
 
 
 class RestrictedImageField(serializers.ImageField):

@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
                           LogoutSerializer, OutputImageSerializer, ChangePasswordSerializer,
                           DeleteUserSerializer, TestImageRequestSendingSerializer, ImageRequestSerializer,
-                          InputImageSerializer)
+                          InputImageSerializer, ImageRequestUserHistorySerializer)
 from .models import OutputImage, ImageRequest, ProcessingLog #, Image
 from io import BytesIO
 import cv2 as cv
@@ -173,8 +173,14 @@ class TestImageRequestSendingView(GenericAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ImageRequestUserHistoryView(GenericAPIView):
-    pass
+class ImageRequestUserHistoryView(ListAPIView):
+    serializer_class = ImageRequestUserHistorySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        return ImageRequest.objects.filter(user=user).prefetch_related('input_images', 'output_image')
 
 
 # class PixelDifference(APIView):
