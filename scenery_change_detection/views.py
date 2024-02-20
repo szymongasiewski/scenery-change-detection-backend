@@ -180,7 +180,7 @@ class ImageRequestUserHistoryView(ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        return ImageRequest.objects.filter(user=user).prefetch_related('input_images', 'output_image')
+        return ImageRequest.objects.filter(user=user).order_by('-created_at').prefetch_related('input_images', 'output_image')
 
 
 # class PixelDifference(APIView):
