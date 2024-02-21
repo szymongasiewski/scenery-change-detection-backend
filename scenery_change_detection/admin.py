@@ -11,14 +11,40 @@ class UserAdmin(admin.ModelAdmin):
     list_per_page = 50
 
 
-class ImageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'date_created', 'user_id', 'user_link', 'image')
-    readonly_fields = ('image', 'user', 'date_created',)
+class ImageRequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'created_at', 'updated_at', 'user_id', 'user_link')
+    readonly_fields = ('user', 'created_at', 'updated_at',)
 
     def user_link(self, obj):
-        url = reverse("admin:scenery_change_detection_user_change", args=[obj.user.id])
-        return format_html('<a href="{}">{}</a>', url, obj.user.email)
+        url = reverse('admin:scenery_change_detection_user_change', args=[obj.user.id])
+        return format_html('<a href="{}">{}<a/>', url, obj.user.email)
     user_link.short_description = 'User'
+
+
+def get_image_request_link(obj):
+    url = reverse('admin:scenery_change_detection_imagerequest_change', args=[obj.image_request.id])
+    return format_html('<a href="{}">{}<a/>', url, obj.image_request.id)
+
+
+class ImageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'image_request_id', 'image_request_link', 'image')
+    readonly_fields = ('image', 'image_request',)
+
+    def image_request_link(self, obj):
+        return get_image_request_link(obj)
+    image_request_link.short_description = 'Image Request ID'
+
+
+class InputImageAdmin(ImageAdmin):
+    list_display = ImageAdmin.list_display + ('output_image_reference',)
+    readonly_fields = ImageAdmin.readonly_fields + ('output_image_reference',)
+
+    def output_image_reference(self, obj):
+        output_image = obj.image_request.output_image
+        url = reverse('admin:scenery_change_detection_outputimage_change', args=[output_image.id])
+        return format_html('<a href="{}">{}<a/>', url, output_image.id)
+
+    output_image_reference.short_description = 'Output Image ID'
 
 
 class OutputImageAdmin(ImageAdmin):
@@ -27,24 +53,26 @@ class OutputImageAdmin(ImageAdmin):
 
     def input_images_links(self, obj):
         links = []
-        for input_image in obj.input_images.all():
-            url = reverse("admin:scenery_change_detection_inputimage_change", args=[input_image.id])
+        for input_image in obj.image_request.input_images.all():
+            url = reverse('admin:scenery_change_detection_inputimage_change', args=[input_image.id])
             links.append(format_html('<a href="{}">{}</a>', url, input_image.id))
         return format_html_join(', ', '{}', ((link,) for link in links))
 
     input_images_links.short_description = 'Input Images Links'
 
 
-class InputImageAdmin(ImageAdmin):
-    list_display = ImageAdmin.list_display + ('output_image_reference',)
-    readonly_fields = ImageAdmin.readonly_fields + ('output_image',)
+class ProcessingLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'image_request_id', 'image_request_link')
+    readonly_fields = ('image_request',)
 
-    def output_image_reference(self, obj):
-        url = reverse("admin:scenery_change_detection_outputimage_change", args=[obj.output_image.id])
-        return format_html('<a href="{}">{}</a>', url, obj.output_image.id)
-    output_image_reference.short_description = 'Output Image ID'
+    def image_request_link(self, obj):
+        return get_image_request_link(obj)
+
+    image_request_link.short_description = 'Image Request ID'
 
 
 admin.site.register(models.User, UserAdmin)
+admin.site.register(models.ImageRequest, ImageRequestAdmin)
 admin.site.register(models.InputImage, InputImageAdmin)
 admin.site.register(models.OutputImage, OutputImageAdmin)
+admin.site.register(models.ProcessingLog, ProcessingLogAdmin)
