@@ -197,12 +197,6 @@ class OutputImageSerializer(serializers.ModelSerializer):
         fields = ['image']
 
 
-class ImageRequestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ImageRequest
-        fields = '__all__'
-
-
 class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
     input_images = InputImageSerializer(many=True, read_only=True)
     output_image = OutputImageSerializer(read_only=True)
@@ -218,7 +212,7 @@ class RestrictedImageField(serializers.ImageField):
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
             image_request.save()
-            processing_log = ProcessingLog.objects.create(
+            ProcessingLog.objects.create(
                 image_request=image_request,
                 log_message=f'Request {image_request.id} status: {image_request.status}.'
                             f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
@@ -233,7 +227,7 @@ class RestrictedImageField(serializers.ImageField):
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
             image_request.save()
-            processing_log = ProcessingLog.objects.create(
+            ProcessingLog.objects.create(
                 image_request=image_request,
                 log_message=f'Request {image_request.id} status: {image_request.status}.'
                             f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
@@ -347,71 +341,3 @@ class ChangeDetectionSerializer(serializers.Serializer):
         image_request.status = 'COMPLETED'
         image_request.save()
         return output_image
-
-
-class TestImageRequestSendingSerializer(serializers.Serializer):
-    input_image1 = RestrictedImageField()
-    input_image2 = RestrictedImageField()
-
-    def validate(self, attrs):
-        image_request = self.context.get('image_request')
-
-        if not attrs['input_image1']:
-            image_request.status = 'FAILED'
-            image_request.save()
-            processing_log = ProcessingLog.objects.create(
-                image_request=image_request,
-                log_message=f'Request {image_request.id} status: {image_request.status}.'
-                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
-                            f' Message: Invalid input_image1.'
-            )
-            raise serializers.ValidationError('Invalid input_image1')
-        if not attrs['input_image2']:
-            image_request.status = 'FAILED'
-            image_request.save()
-            processing_log = ProcessingLog.objects.create(
-                image_request=image_request,
-                log_message=f'Request {image_request.id} status: {image_request.status}.'
-                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
-                            f' Message: Invalid input_image2.'
-            )
-            raise serializers.ValidationError('Invalid input_image2')
-
-        image_request.status = 'PROCESSING'
-        image_request.save()
-        processing_log = ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Provided files are valid. Processing started.'
-        )
-
-        return attrs
-
-    def create(self, validated_data):
-        image_request = self.context.get('image_request')
-        input_image1 = InputImage.objects.create(image=validated_data['input_image1'], image_request=image_request)
-        processing_log = ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Created InputImage object with id: {input_image1.id}.'
-        )
-        input_image2 = InputImage.objects.create(image=validated_data['input_image2'], image_request=image_request)
-        processing_log = ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Created InputImage object with id: {input_image2.id}.'
-        )
-        output_image = OutputImage.objects.create(image=validated_data['input_image1'], image_request=image_request)
-        processing_log = ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Created OutputImage object with id: {output_image.id}.'
-        )
-        image_request.status = 'COMPLETED'
-        image_request.save()
-        return input_image1, input_image2, output_image
-
-
-class ImagesToProcessSerializer(serializers.Serializer):
-    image1 = serializers.ImageField()
-    image2 = serializers.ImageField()
