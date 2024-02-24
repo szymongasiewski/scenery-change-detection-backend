@@ -12,4 +12,5 @@ urlpatterns = [
     path('user/history/images/', views.ImageRequestUserHistoryView.as_view(), name="user-history-images"),
     path('user/delete/', views.DeleteUserView.as_view(), name='user-delete'),
     path('user/change-password/', views.ChangePasswordView.as_view(), name='user-change-password'),
+    path('change-detection/', views.ChangeDetectionView.as_view(), name='change-detection'),
 ]

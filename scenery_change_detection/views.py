@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from .serializers import (UserRegisterSerializer, LoginSerializer, ImagesToProcessSerializer, RefreshTokenSerializer,
                           LogoutSerializer, OutputImageSerializer, ChangePasswordSerializer,
                           DeleteUserSerializer, TestImageRequestSendingSerializer, ImageRequestSerializer,
-                          InputImageSerializer, ImageRequestUserHistorySerializer)
+                          InputImageSerializer, ImageRequestUserHistorySerializer, ChangeDetectionSerializer)
 from .models import OutputImage, ImageRequest, ProcessingLog #, Image
 from io import BytesIO
 import cv2 as cv
@@ -181,6 +181,37 @@ class ImageRequestUserHistoryView(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return ImageRequest.objects.filter(user=user).order_by('-created_at').prefetch_related('input_images', 'output_image')
+
+
+class ChangeDetectionView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = ChangeDetectionSerializer
+
+    def post(self, request, format=None):
+        image_request = ImageRequest.objects.create(user=request.user, status='PENDING')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Sent by user with id: {request.user.id}.'
+        )
+        serializer = self.serializer_class(data=request.data, context={
+            'request': request,
+            'image_request': image_request})
+        if serializer.is_valid(raise_exception=True):
+            output_image = serializer.save()
+            output_image_serializer = OutputImageSerializer(output_image)
+            response_data = {
+                'output_image': output_image_serializer.data,
+            }
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_200_OK)}.'
+                            f' Response message: {json.dumps(response_data)}.'
+            )
+            return Response(response_data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # class PixelDifference(APIView):

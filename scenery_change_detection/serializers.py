@@ -1,3 +1,4 @@
+import cv2
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from rest_framework.exceptions import AuthenticationFailed
@@ -10,6 +11,9 @@ import re
 from PIL import Image as PilImage
 from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog
 from rest_framework import status
+from .utils import ChangeDetection
+from django.core.files.uploadedfile import InMemoryUploadedFile
+from io import BytesIO
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -237,6 +241,78 @@ class RestrictedImageField(serializers.ImageField):
             )
             raise serializers.ValidationError('Invalid file format. Only JPEG, JPG and PNG are supported.')
         return data
+
+
+class ChangeDetectionSerializer(serializers.Serializer):
+    input_image1 = RestrictedImageField()
+    input_image2 = RestrictedImageField()
+
+    def validate(self, attrs):
+        image_request = self.context.get('image_request')
+
+        if not attrs['input_image1']:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid input_image1.'
+            )
+            raise serializers.ValidationError('Invalid input_image1')
+        if not attrs['input_image2']:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid input_image2.'
+            )
+            raise serializers.ValidationError('Invalid input_image2')
+
+        image_request.status = 'PROCESSING'
+        image_request.save()
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Provided files are valid. Processing started.'
+        )
+
+        return attrs
+
+    def create(self, validated_data):
+        image_request = self.context.get('image_request')
+        image1 = validated_data['input_image1']
+        image2 = validated_data['input_image2']
+        input_image1 = InputImage.objects.create(image=image1, image_request=image_request)
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created InputImage object with id: {input_image1.id}.'
+        )
+        input_image2 = InputImage.objects.create(image=image2, image_request=image_request)
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created InputImage object with id: {input_image2.id}.'
+        )
+
+        change = ChangeDetection.change_detection(image1, image2)
+        buffer = cv2.imencode(".jpg", change)[1].tostring()
+        result_image_file = InMemoryUploadedFile(
+            BytesIO(buffer),
+            None,
+            'output_image.jpg',
+            'image/jpeg',
+            len(buffer),
+            None
+        )
+        output_image = OutputImage.objects.create(image_request=image_request, image=result_image_file)
+
+        image_request.status = 'COMPLETED'
+        image_request.save()
+        return output_image
 
 
 class TestImageRequestSendingSerializer(serializers.Serializer):
