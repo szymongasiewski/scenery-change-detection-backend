@@ -23,7 +23,10 @@ class ChangeDetection:
 
     @staticmethod
     def find_vector_set(diff_img, new_size, h):
-        vector_set = np.zeros((int((new_size[0] * new_size[1]) / (h * h)), h * h))
+        print(diff_img.shape)
+        total_pixels = np.prod(diff_img.shape[:2])
+        features_per_block = h * h * diff_img.shape[2]
+        vector_set = np.zeros((total_pixels, features_per_block))
 
         i = 0
         for j in range(0, new_size[0] - h + 1, h):
@@ -46,7 +49,10 @@ class ChangeDetection:
         while i < new_size[0] - h // 2:
             j = h // 2
             while j < new_size[1] - h // 2:
-                block = diff_img[i - h // 2:i + h // 2 + 1, j - h // 2:j + h // 2 + 1]
+                if h % 2 == 0:
+                    block = diff_img[i - h // 2:i + h // 2, j - h // 2:j + h // 2]
+                else:
+                    block = diff_img[i - h // 2:i + h // 2 + 1, j - h // 2:j + h // 2 + 1]
                 feature = block.flatten()
                 feature_vector_set.append(feature)
                 j = j + 1
@@ -64,21 +70,29 @@ class ChangeDetection:
         count = Counter(output)
 
         least_index = min(count, key=count.get)
-        change_map = np.reshape(output, (new_size[0] - h + 1, new_size[1] - h + 1))
+        change_map = None
+        if h % 2 == 0:
+            change_map = np.reshape(output, (new_size[0] - h, new_size[1] - h))
+        else:
+            change_map = np.reshape(output, (new_size[0] - h + 1, new_size[1] - h + 1))
         return least_index, change_map
+
+    @staticmethod
+    def resize_if_needed(image, max_size=1024):
+        if image.shape[0] > max_size or image.shape[1] > max_size:
+            aspect_ratio = image.shape[1] / image.shape[0]
+            if image.shape[0] > image.shape[1]:
+                image = cv2.resize(image, (int(max_size * aspect_ratio), max_size))
+            else:
+                image = cv2.resize(image, (max_size, int(max_size / aspect_ratio)))
+        return image
 
     @staticmethod
     def change_detection(img1, img2):
         image1 = ChangeDetection.read_image(img1)
         image2 = ChangeDetection.read_image(img2)
 
-        max_size = 1024
-        if image1.shape[0] > max_size or image1.shape[1] > max_size:
-            aspect_ratio = image1.shape[1] / image1.shape[0]
-            if image1.shape[0] > image1.shape[1]:
-                image1 = cv2.resize(image1, (int(max_size * aspect_ratio), max_size))
-            else:
-                image1 = cv2.resize(image1, (max_size, int(max_size / aspect_ratio)))
+        image1 = ChangeDetection.resize_if_needed(image1)
 
         new_size = np.asarray(image1.shape) / 5
         new_size = new_size.astype(int) * 5
@@ -87,8 +101,8 @@ class ChangeDetection:
         image2 = ChangeDetection.resize_image(image2, new_size)
 
         diff_image = cv2.absdiff(image1, image2)
-        diff_image = diff_image[:, :, 1]
-        h = 5
+
+        h = 10
         vector_set, mean_vec = ChangeDetection.find_vector_set(diff_image, new_size, h)
 
         pca = PCA()
@@ -97,7 +111,7 @@ class ChangeDetection:
 
         fvs = ChangeDetection.find_fvs(evs, diff_image, mean_vec, new_size, h)
 
-        components = 3
+        components = 2
         least_index, change_map = ChangeDetection.clustering(fvs, components, new_size, h)
         change_map[change_map == least_index] = 255
         change_map[change_map != 255] = 0
