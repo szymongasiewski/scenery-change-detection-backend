@@ -93,16 +93,17 @@ class ChangeDetection:
         image2 = ChangeDetection.read_image(img2)
 
         image1 = ChangeDetection.resize_if_needed(image1)
+        h = 6
 
-        new_size = np.asarray(image1.shape) / 5
-        new_size = new_size.astype(int) * 5
+        new_size = np.asarray(image1.shape) / h
+        new_size = new_size.astype(int) * h
 
         image1 = ChangeDetection.resize_image(image1, new_size)
         image2 = ChangeDetection.resize_image(image2, new_size)
 
         diff_image = cv2.absdiff(image1, image2)
 
-        h = 10
+
         vector_set, mean_vec = ChangeDetection.find_vector_set(diff_image, new_size, h)
 
         pca = PCA()
