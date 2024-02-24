@@ -195,9 +195,7 @@ class ChangeDetectionView(GenericAPIView):
             log_message=f'Request {image_request.id} status: {image_request.status}.'
                         f' Sent by user with id: {request.user.id}.'
         )
-        serializer = self.serializer_class(data=request.data, context={
-            'request': request,
-            'image_request': image_request})
+        serializer = self.serializer_class(data=request.data, context={'image_request': image_request})
         if serializer.is_valid(raise_exception=True):
             output_image = serializer.save()
             output_image_serializer = OutputImageSerializer(output_image)

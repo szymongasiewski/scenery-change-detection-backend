@@ -246,6 +246,22 @@ class RestrictedImageField(serializers.ImageField):
 class ChangeDetectionSerializer(serializers.Serializer):
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
+    block_size = serializers.IntegerField(required=False, default=5)
+
+    def validate_block_size(self, value):
+        if value < 2 or value > 10:
+            image_request = self.context.get('image_request')
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid block_size. Block size must be between 2 and 10.'
+            )
+            raise serializers.ValidationError('Invalid block_size. Block size must be between 2 and 10.')
+
+        return value
 
     def validate(self, attrs):
         image_request = self.context.get('image_request')
@@ -297,9 +313,22 @@ class ChangeDetectionSerializer(serializers.Serializer):
             log_message=f'Request {image_request.id} status: {image_request.status}.'
                         f' Message: Created InputImage object with id: {input_image2.id}.'
         )
+        block_size = validated_data['block_size']
 
-        change = ChangeDetection.change_detection(image1, image2)
-        buffer = cv2.imencode(".jpg", change)[1].tostring()
+        try:
+            change = ChangeDetection.change_detection(image1, image2, block_size)
+        except Exception as e:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Error during change detection: {str(e)}'
+            )
+            raise serializers.ValidationError('Error during change detection.')
+
+        buffer = cv2.imencode(".jpg", change)[1]
         result_image_file = InMemoryUploadedFile(
             BytesIO(buffer),
             None,
@@ -309,6 +338,11 @@ class ChangeDetectionSerializer(serializers.Serializer):
             None
         )
         output_image = OutputImage.objects.create(image_request=image_request, image=result_image_file)
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created OutputImage object with id: {output_image.id}.'
+        )
 
         image_request.status = 'COMPLETED'
         image_request.save()
