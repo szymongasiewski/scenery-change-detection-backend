@@ -50,11 +50,13 @@ class ImageRequest(models.Model):
 
 
 def user_directory_path_input_images(instance, filename):
-    return 'user_{0}/input_images/{1}'.format(instance.image_request.user.id, filename)
+    return 'user_{0}/request_{1}/input_images/{2}'.format(instance.image_request.user.id,
+                                                          instance.image_request.id, filename)
 
 
 def user_directory_path_output_images(instance, filename):
-    return 'user_{0}/output_images/{1}'.format(instance.image_request.user.id, filename)
+    return 'user_{0}/request_{1}/output_images/{2}'.format(instance.image_request.user.id,
+                                                           instance.image_request.id, filename)
 
 
 class InputImage(models.Model):
