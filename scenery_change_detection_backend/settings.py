@@ -12,19 +12,26 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import dj_database_url
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env()
+environ.Env.read_env()
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-tn(t*d78vtgzqv-*w+m89i+%u#5mhhcb5ti*dah8t32g4!&pi%'
+# SECRET_KEY = 'django-insecure-tn(t*d78vtgzqv-*w+m89i+%u#5mhhcb5ti*dah8t32g4!&pi%'
+SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG = True
+DEBUG = env('DEBUG')
 
 ALLOWED_HOSTS = []
 
@@ -126,15 +133,19 @@ WSGI_APPLICATION = 'scenery_change_detection_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'scenery_change_detection_db',
+#         'USER': 'postgres',
+#         'PASSWORD': 'admin',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'scenery_change_detection_db',
-        'USER': 'postgres',
-        'PASSWORD': 'admin',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.parse(env('DATABASE_URL'))
 }
 
 
@@ -185,8 +196,13 @@ AUTH_USER_MODEL = 'scenery_change_detection.User'
 
 CORS_ALLOW_CREDENTIALS = True
 
+
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+# ]
+
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    env('CORS_ALLOWED_ORIGIN'),
 ]
 
 MEDIA_URL = '/media/'
