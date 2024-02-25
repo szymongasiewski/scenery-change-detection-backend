@@ -73,7 +73,7 @@ class ChangeDetection:
         return least_index, change_map
 
     @staticmethod
-    def resize_if_needed(image, max_size=1024):
+    def resize_if_needed(image, max_size=150):
         if image.shape[0] > max_size or image.shape[1] > max_size:
             aspect_ratio = image.shape[1] / image.shape[0]
             if image.shape[0] > image.shape[1]:
