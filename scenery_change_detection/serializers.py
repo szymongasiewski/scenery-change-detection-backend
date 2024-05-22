@@ -9,11 +9,14 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 import re
 from PIL import Image as PilImage
-from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog
+from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog, OneTimePassword
 from rest_framework import status
 from .utils import ChangeDetection
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from io import BytesIO
+from django.conf import settings
+from django.utils import timezone
+from django.core.mail import send_mail
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -46,6 +49,55 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(email=validated_data["email"], password=validated_data.get("password"))
 
         return user
+    
+
+class VerifyEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=255)
+    otp = serializers.CharField(max_length=6, min_length=6, write_only=True)
+
+    def validate(self, attrs):
+        try:
+            user = get_user_model().objects.get(email=attrs.get('email'))
+        except get_user_model().DoesNotExist:
+            raise serializers.ValidationError('User does not exist')
+        
+        user_otp = OneTimePassword.objects.filter(user=user)
+
+        if user_otp.exists():
+            last_user_otp = user_otp.last()
+            print('serializer')
+            print(last_user_otp)
+            if last_user_otp.is_valid(attrs.get('otp')):
+                return attrs
+            else:
+                raise serializers.ValidationError('Invalid or expired OTP')
+        else:
+            raise serializers.ValidationError('OTP does not exist')
+        
+    def save(self, **kwargs):
+        user = get_user_model().objects.get(email=self.validated_data.get('email'))
+        user.is_active = True
+        user.save()
+
+class ResendEmailVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=255)
+
+    def validate(self, attrs):
+        user = get_user_model().objects.filter(email=attrs.get('email')).first()
+        if user is None:
+            raise serializers.ValidationError('User does not exist')
+        if user.is_active:
+            raise serializers.ValidationError('User is already verified')
+        return attrs
+    
+    def save(self, **kwargs):
+        user = get_user_model().objects.get(email=self.validated_data.get('email'))
+        otp = OneTimePassword.objects.create(user=user, expires_at=timezone.now() + timezone.timedelta(minutes=5))
+        subject = 'Your One Time Password'
+        message = f'Your OTP is {otp.otp}'
+        sender = settings.EMAIL_HOST_USER
+        receiver = [user.email, ]
+        send_mail(subject, message, sender, receiver, fail_silently=False)
 
 
 class LoginSerializer(serializers.ModelSerializer):
@@ -64,6 +116,9 @@ class LoginSerializer(serializers.ModelSerializer):
 
         if not user:
             raise AuthenticationFailed("Invalid credentials try again")
+        
+        if not user.is_active:
+            raise AuthenticationFailed("Account is not verified")
 
         user_tokens = user.tokens()
         access = user_tokens['access']
