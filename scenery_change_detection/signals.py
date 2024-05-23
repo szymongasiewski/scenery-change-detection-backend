@@ -36,7 +36,7 @@ def create_one_time_password(sender, instance, created, **kwargs):
 
         otp = OneTimePassword.objects.filter(user=instance).last()
         subject = 'Your One Time Password'
-        message = f'Your OTP is {otp.otp}'
+        message = f'Your OTP is {otp.otp} \n\n This OTP will expire in 5 minutes.\n{settings.CORS_ALLOWED_ORIGINS[0]}/verify-email/{instance.id}'
         sender = settings.EMAIL_HOST_USER
         receiver = [instance.email, ]
 

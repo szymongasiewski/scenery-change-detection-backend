@@ -21,12 +21,13 @@ from django.core.mail import send_mail
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])
+    id = serializers.IntegerField(read_only=True)
     password = serializers.CharField(max_length=128, min_length=8, write_only=True)
     confirm_password = serializers.CharField(max_length=128, min_length=8, write_only=True)
 
     class Meta:
         model = User
-        fields = ["email", "password", "confirm_password"]
+        fields = ["email", "id", "password", "confirm_password"]
 
     def validate_password(self, password):
         password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,128}$"
@@ -47,17 +48,17 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = User.objects.create_user(email=validated_data["email"], password=validated_data.get("password"))
-
+        
         return user
     
 
 class VerifyEmailSerializer(serializers.Serializer):
-    email = serializers.EmailField(max_length=255)
+    id = serializers.IntegerField(write_only=True)
     otp = serializers.CharField(max_length=6, min_length=6, write_only=True)
 
     def validate(self, attrs):
         try:
-            user = get_user_model().objects.get(email=attrs.get('email'))
+            user = get_user_model().objects.get(id=attrs.get('id'))
         except get_user_model().DoesNotExist:
             raise serializers.ValidationError('User does not exist')
         
@@ -65,8 +66,7 @@ class VerifyEmailSerializer(serializers.Serializer):
 
         if user_otp.exists():
             last_user_otp = user_otp.last()
-            print('serializer')
-            print(last_user_otp)
+            
             if last_user_otp.is_valid(attrs.get('otp')):
                 return attrs
             else:
@@ -75,15 +75,15 @@ class VerifyEmailSerializer(serializers.Serializer):
             raise serializers.ValidationError('OTP does not exist')
         
     def save(self, **kwargs):
-        user = get_user_model().objects.get(email=self.validated_data.get('email'))
+        user = get_user_model().objects.get(id=self.validated_data.get('id'))
         user.is_active = True
         user.save()
 
 class ResendEmailVerificationSerializer(serializers.Serializer):
-    email = serializers.EmailField(max_length=255)
+    id = serializers.IntegerField(write_only=True)
 
     def validate(self, attrs):
-        user = get_user_model().objects.filter(email=attrs.get('email')).first()
+        user = get_user_model().objects.filter(id=attrs.get('id')).first()
         if user is None:
             raise serializers.ValidationError('User does not exist')
         if user.is_active:
@@ -91,10 +91,10 @@ class ResendEmailVerificationSerializer(serializers.Serializer):
         return attrs
     
     def save(self, **kwargs):
-        user = get_user_model().objects.get(email=self.validated_data.get('email'))
+        user = get_user_model().objects.get(id=self.validated_data.get('id'))
         otp = OneTimePassword.objects.create(user=user, expires_at=timezone.now() + timezone.timedelta(minutes=5))
         subject = 'Your One Time Password'
-        message = f'Your OTP is {otp.otp}'
+        message = f'Your OTP is {otp.otp} \n\n This OTP will expire in 5 minutes.\n{settings.CORS_ALLOWED_ORIGINS[0]}/verify-email/{user.id}'
         sender = settings.EMAIL_HOST_USER
         receiver = [user.email, ]
         send_mail(subject, message, sender, receiver, fail_silently=False)
@@ -113,12 +113,12 @@ class LoginSerializer(serializers.ModelSerializer):
         password = attrs.get("password")
         request = self.context.get("request")
         user = authenticate(request, email=email, password=password)
-
+        
         if not user:
             raise AuthenticationFailed("Invalid credentials try again")
         
-        if not user.is_active:
-            raise AuthenticationFailed("Account is not verified")
+        # if not user.is_active:
+        #     raise AuthenticationFailed("Account is not verified")
 
         user_tokens = user.tokens()
         access = user_tokens['access']

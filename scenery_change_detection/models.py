@@ -82,9 +82,13 @@ class ProcessingLog(models.Model):
     log_message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
+
+def generate_otp():
+    return secrets.token_hex(3)
+
 class OneTimePassword(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    otp = models.CharField(max_length=6, default=secrets.token_hex(3))
+    otp = models.CharField(max_length=6, default=generate_otp)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField(blank=True, null=True)
 
@@ -92,9 +96,6 @@ class OneTimePassword(models.Model):
         return self.otp
     
     def is_valid(self, otp):
-        print('model')
-        print(otp + ' podany')
-        print(self.otp + ' aktualny')
         return otp == self.otp and self.expires_at >= timezone.now()
     
     class Meta:
