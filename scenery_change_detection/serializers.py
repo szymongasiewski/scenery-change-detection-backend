@@ -278,6 +278,17 @@ class RestrictedImageField(serializers.ImageField):
             image = PilImage.open(data)
             if image.format not in ['JPEG', 'JPG', 'PNG']:
                 raise IOError
+            if image.size[0] > 1024 or image.size[1] > 1024:
+                image_request = self.context.get('image_request')
+                image_request.status = 'FAILED'
+                image_request.save()
+                ProcessingLog.objects.create(
+                    image_request=image_request,
+                    log_message=f'Request {image_request.id} status: {image_request.status}.'
+                                f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                                f' Message: Image size is too large. Maximum size is 1024x1024.'
+                )
+                raise serializers.ValidationError('Image size is too large. Maximum size is 1024x1024.')
         except IOError:
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
@@ -295,10 +306,10 @@ class RestrictedImageField(serializers.ImageField):
 class ChangeDetectionSerializer(serializers.Serializer):
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
-    block_size = serializers.IntegerField(required=False, default=5)
+    block_size = serializers.IntegerField(required=False, default=3, min_value=2, max_value=10)
 
     def validate_block_size(self, value):
-        if value < 2 or value > 10:
+        if value < 2 or value > 5:
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
             image_request.save()
@@ -306,9 +317,9 @@ class ChangeDetectionSerializer(serializers.Serializer):
                 image_request=image_request,
                 log_message=f'Request {image_request.id} status: {image_request.status}.'
                             f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
-                            f' Message: Invalid block_size. Block size must be between 2 and 10.'
+                            f' Message: Invalid block_size. Block size must be between 2 and 5.'
             )
-            raise serializers.ValidationError('Invalid block_size. Block size must be between 2 and 10.')
+            raise serializers.ValidationError('Invalid block size. Block size must be between 2 and 5.')
 
         return value
 

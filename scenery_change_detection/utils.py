@@ -87,7 +87,7 @@ class ChangeDetection:
         image1 = ChangeDetection.read_image(img1)
         image2 = ChangeDetection.read_image(img2)
 
-        image1 = ChangeDetection.resize_if_needed(image1)
+        #image1 = ChangeDetection.resize_if_needed(image1)
 
         new_size = np.asarray(image1.shape) / block_size
         new_size = new_size.astype(int) * block_size
