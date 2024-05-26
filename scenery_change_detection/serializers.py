@@ -2,8 +2,10 @@ import cv2
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth import authenticate
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
 from rest_framework_simplejwt.state import token_backend
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
@@ -200,6 +202,74 @@ class DeleteUserSerializer(serializers.ModelSerializer):
             request.user.delete()
         except Exception as e:
             raise serializers.ValidationError({'detail': str(e)})
+        
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=255)
+
+    def validate_email(self, value):
+        try:
+            user = get_user_model().objects.get(email=value)
+        except get_user_model().DoesNotExist:
+            raise serializers.ValidationError("User with this email does not exist.")
+        return value
+    
+    def save(self, **kwargs):
+        request = self.context.get('request')
+        email = self.validated_data.get('email')
+        user = get_user_model().objects.get(email=email)
+
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        
+        reset_url = f"{settings.CORS_ALLOWED_ORIGINS[0]}/password-reset-confirm/{uid}/{token}"
+
+        send_mail(
+            subject='Password Reset',
+            message=f'Click the link below to reset your password\n{reset_url}',
+            from_email=settings.EMAIL_HOST_USER,
+            recipient_list=[user.email, ],
+            fail_silently=False
+        )
+
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    new_password = serializers.CharField(max_length=128, min_length=8, write_only=True)
+    confirm_new_password = serializers.CharField(max_length=128, min_length=8, write_only=True)
+    uid = serializers.CharField(write_only=True)
+    token = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,128}$"
+        if not re.match(password_regex, value):
+            raise serializers.ValidationError("Password must have minimum 8 characters in length, at least one"
+                                              " uppercase English letter, at least one lowercase English letter, "
+                                              "at least one digit, and at least one special character.")
+        return value
+
+    def validate(self, attrs):
+        try:
+            uid = force_str(urlsafe_base64_decode(attrs.get('uid')))
+            user = get_user_model().objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
+            raise serializers.ValidationError('Invalid token or user ID')
+        
+        if not default_token_generator.check_token(user, attrs.get('token')):
+            raise serializers.ValidationError('Invalid token')
+        
+        new_password = attrs.get('new_password')
+        confirm_new_password = attrs.get('confirm_new_password')
+
+        if new_password != confirm_new_password:
+            raise serializers.ValidationError('Passwords do not match')
+        
+        return attrs
+    
+    def save(self, **kwargs):
+        uid = self.validated_data.get('uid')
+        user = get_user_model().objects.get(pk=force_str(urlsafe_base64_decode(uid)))
+        user.set_password(self.validated_data.get('new_password'))
+        user.save()
 
 
 class ChangePasswordSerializer(serializers.Serializer):
