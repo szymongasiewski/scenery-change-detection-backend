@@ -2,28 +2,34 @@ import cv2
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from rest_framework.exceptions import AuthenticationFailed
-from django.contrib.auth import authenticate
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
 from rest_framework_simplejwt.state import token_backend
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 import re
 from PIL import Image as PilImage
-from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog
+from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog, OneTimePassword
 from rest_framework import status
 from .utils import ChangeDetection
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from io import BytesIO
+from django.conf import settings
+from django.utils import timezone
+from django.core.mail import send_mail
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])
+    id = serializers.IntegerField(read_only=True)
     password = serializers.CharField(max_length=128, min_length=8, write_only=True)
     confirm_password = serializers.CharField(max_length=128, min_length=8, write_only=True)
 
     class Meta:
         model = User
-        fields = ["email", "password", "confirm_password"]
+        fields = ["email", "id", "password", "confirm_password"]
 
     def validate_password(self, password):
         password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,128}$"
@@ -44,8 +50,56 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = User.objects.create_user(email=validated_data["email"], password=validated_data.get("password"))
-
+        
         return user
+    
+
+class VerifyEmailSerializer(serializers.Serializer):
+    id = serializers.IntegerField(write_only=True)
+    otp = serializers.CharField(max_length=6, min_length=6, write_only=True)
+
+    def validate(self, attrs):
+        try:
+            user = get_user_model().objects.get(id=attrs.get('id'))
+        except get_user_model().DoesNotExist:
+            raise serializers.ValidationError('User does not exist')
+        
+        user_otp = OneTimePassword.objects.filter(user=user)
+
+        if user_otp.exists():
+            last_user_otp = user_otp.last()
+            
+            if last_user_otp.is_valid(attrs.get('otp')):
+                return attrs
+            else:
+                raise serializers.ValidationError('Invalid or expired OTP')
+        else:
+            raise serializers.ValidationError('OTP does not exist')
+        
+    def save(self, **kwargs):
+        user = get_user_model().objects.get(id=self.validated_data.get('id'))
+        user.is_active = True
+        user.save()
+
+class ResendEmailVerificationSerializer(serializers.Serializer):
+    id = serializers.IntegerField(write_only=True)
+
+    def validate(self, attrs):
+        user = get_user_model().objects.filter(id=attrs.get('id')).first()
+        if user is None:
+            raise serializers.ValidationError('User does not exist')
+        if user.is_active:
+            raise serializers.ValidationError('User is already verified')
+        return attrs
+    
+    def save(self, **kwargs):
+        user = get_user_model().objects.get(id=self.validated_data.get('id'))
+        otp = OneTimePassword.objects.create(user=user, expires_at=timezone.now() + timezone.timedelta(minutes=5))
+        subject = 'Your One Time Password'
+        message = f'Your OTP is {otp.otp} \n\n This OTP will expire in 5 minutes.\n{settings.CORS_ALLOWED_ORIGINS[0]}/verify-email/{user.id}'
+        sender = settings.EMAIL_HOST_USER
+        receiver = [user.email, ]
+        send_mail(subject, message, sender, receiver, fail_silently=False)
 
 
 class LoginSerializer(serializers.ModelSerializer):
@@ -61,9 +115,12 @@ class LoginSerializer(serializers.ModelSerializer):
         password = attrs.get("password")
         request = self.context.get("request")
         user = authenticate(request, email=email, password=password)
-
+        
         if not user:
             raise AuthenticationFailed("Invalid credentials try again")
+        
+        # if not user.is_active:
+        #     raise AuthenticationFailed("Account is not verified")
 
         user_tokens = user.tokens()
         access = user_tokens['access']
@@ -145,6 +202,74 @@ class DeleteUserSerializer(serializers.ModelSerializer):
             request.user.delete()
         except Exception as e:
             raise serializers.ValidationError({'detail': str(e)})
+        
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=255)
+
+    def validate_email(self, value):
+        try:
+            user = get_user_model().objects.get(email=value)
+        except get_user_model().DoesNotExist:
+            raise serializers.ValidationError("User with this email does not exist.")
+        return value
+    
+    def save(self, **kwargs):
+        request = self.context.get('request')
+        email = self.validated_data.get('email')
+        user = get_user_model().objects.get(email=email)
+
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        
+        reset_url = f"{settings.CORS_ALLOWED_ORIGINS[0]}/password-reset-confirm/{uid}/{token}"
+
+        send_mail(
+            subject='Password Reset',
+            message=f'Click the link below to reset your password\n{reset_url}',
+            from_email=settings.EMAIL_HOST_USER,
+            recipient_list=[user.email, ],
+            fail_silently=False
+        )
+
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    new_password = serializers.CharField(max_length=128, min_length=8, write_only=True)
+    confirm_new_password = serializers.CharField(max_length=128, min_length=8, write_only=True)
+    uid = serializers.CharField(write_only=True)
+    token = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        password_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-.]).{8,128}$"
+        if not re.match(password_regex, value):
+            raise serializers.ValidationError("Password must have minimum 8 characters in length, at least one"
+                                              " uppercase English letter, at least one lowercase English letter, "
+                                              "at least one digit, and at least one special character.")
+        return value
+
+    def validate(self, attrs):
+        try:
+            uid = force_str(urlsafe_base64_decode(attrs.get('uid')))
+            user = get_user_model().objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
+            raise serializers.ValidationError('Invalid token or user ID')
+        
+        if not default_token_generator.check_token(user, attrs.get('token')):
+            raise serializers.ValidationError('Invalid token')
+        
+        new_password = attrs.get('new_password')
+        confirm_new_password = attrs.get('confirm_new_password')
+
+        if new_password != confirm_new_password:
+            raise serializers.ValidationError('Passwords do not match')
+        
+        return attrs
+    
+    def save(self, **kwargs):
+        uid = self.validated_data.get('uid')
+        user = get_user_model().objects.get(pk=force_str(urlsafe_base64_decode(uid)))
+        user.set_password(self.validated_data.get('new_password'))
+        user.save()
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -223,6 +348,17 @@ class RestrictedImageField(serializers.ImageField):
             image = PilImage.open(data)
             if image.format not in ['JPEG', 'JPG', 'PNG']:
                 raise IOError
+            if image.size[0] > 1024 or image.size[1] > 1024:
+                image_request = self.context.get('image_request')
+                image_request.status = 'FAILED'
+                image_request.save()
+                ProcessingLog.objects.create(
+                    image_request=image_request,
+                    log_message=f'Request {image_request.id} status: {image_request.status}.'
+                                f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                                f' Message: Image size is too large. Maximum size is 1024x1024.'
+                )
+                raise serializers.ValidationError('Image size is too large. Maximum size is 1024x1024.')
         except IOError:
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
@@ -240,10 +376,10 @@ class RestrictedImageField(serializers.ImageField):
 class ChangeDetectionSerializer(serializers.Serializer):
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
-    block_size = serializers.IntegerField(required=False, default=5)
+    block_size = serializers.IntegerField(required=False, default=3, min_value=2, max_value=10)
 
     def validate_block_size(self, value):
-        if value < 2 or value > 10:
+        if value < 2 or value > 5:
             image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
             image_request.save()
@@ -251,9 +387,9 @@ class ChangeDetectionSerializer(serializers.Serializer):
                 image_request=image_request,
                 log_message=f'Request {image_request.id} status: {image_request.status}.'
                             f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
-                            f' Message: Invalid block_size. Block size must be between 2 and 10.'
+                            f' Message: Invalid block_size. Block size must be between 2 and 5.'
             )
-            raise serializers.ValidationError('Invalid block_size. Block size must be between 2 and 10.')
+            raise serializers.ValidationError('Invalid block size. Block size must be between 2 and 5.')
 
         return value
 

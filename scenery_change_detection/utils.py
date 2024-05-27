@@ -73,7 +73,7 @@ class ChangeDetection:
         return least_index, change_map
 
     @staticmethod
-    def resize_if_needed(image, max_size=150):
+    def resize_if_needed(image, max_size=1024):
         if image.shape[0] > max_size or image.shape[1] > max_size:
             aspect_ratio = image.shape[1] / image.shape[0]
             if image.shape[0] > image.shape[1]:
@@ -87,7 +87,7 @@ class ChangeDetection:
         image1 = ChangeDetection.read_image(img1)
         image2 = ChangeDetection.read_image(img2)
 
-        image1 = ChangeDetection.resize_if_needed(image1)
+        #image1 = ChangeDetection.resize_if_needed(image1)
 
         new_size = np.asarray(image1.shape) / block_size
         new_size = new_size.astype(int) * block_size

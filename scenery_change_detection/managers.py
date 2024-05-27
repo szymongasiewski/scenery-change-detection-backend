@@ -28,6 +28,7 @@ class UserManager(models.BaseUserManager):
     def create_superuser(self, email, password, **kwargs):
         kwargs.setdefault("is_staff", True)
         kwargs.setdefault("is_superuser", True)
+        kwargs.setdefault("is_active", True)
 
         if kwargs.get("is_staff") is not True:
             raise ValueError(gettext_lazy("is staff must be true for admin user"))

@@ -7,7 +7,8 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (UserRegisterSerializer, LoginSerializer, RefreshTokenSerializer, LogoutSerializer,
                           OutputImageSerializer, ChangePasswordSerializer, DeleteUserSerializer,
-                          ImageRequestUserHistorySerializer, ChangeDetectionSerializer)
+                          ImageRequestUserHistorySerializer, ChangeDetectionSerializer, VerifyEmailSerializer,
+                          ResendEmailVerificationSerializer, ResetPasswordSerializer, ResetPasswordConfirmSerializer)
 from .models import ImageRequest, ProcessingLog
 import json
 
@@ -26,6 +27,50 @@ class RegisterUserView(GenericAPIView):
                 "message": "Thanks for singing up"
             }, status=status.HTTP_201_CREATED)
 
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class VerifyEmailView(GenericAPIView):
+    serializer_class = VerifyEmailSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response({"message": "Email verified successfully."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class ResendEmailVerificationView(GenericAPIView):
+    serializer_class = ResendEmailVerificationSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response({"message": "New OTP sent successfully."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class ResetPasswordView(GenericAPIView):
+    serializer_class = ResetPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response({"message": "Password reset link sent successfully."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class ResetPasswordConfirmView(GenericAPIView):
+    serializer_class = ResetPasswordConfirmSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response({"message": "Password reset successfully."}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

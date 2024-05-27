@@ -2,15 +2,17 @@ from django.db import models
 from django.utils.translation import gettext_lazy
 from django.contrib.auth import models as auth_models
 from django.core.validators import FileExtensionValidator
+from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 from .managers import UserManager
+import secrets
 
 
 class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
     email = models.EmailField(max_length=255, unique=True, verbose_name=gettext_lazy("Email Address"))
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(auto_now=True, null=True, blank=True)
 
@@ -80,3 +82,21 @@ class ProcessingLog(models.Model):
     log_message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
+
+def generate_otp():
+    return secrets.token_hex(3)
+
+class OneTimePassword(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    otp = models.CharField(max_length=6, default=generate_otp)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return self.otp
+    
+    def is_valid(self, otp):
+        return otp == self.otp and self.expires_at >= timezone.now()
+    
+    class Meta:
+        ordering = ['created_at']

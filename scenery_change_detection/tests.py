@@ -24,7 +24,12 @@ class TestUserModel(TestCase):
     def test_last_login_field(self):
         self.assertIsNotNone(self.user.last_login)
 
-    def test_is_active_field(self):
+    def test_is_active_field_false_after_creation(self):
+        self.assertFalse(self.user.is_active)
+
+    def test_is_active_field_true_after_verification(self):
+        self.user.is_active = True
+        self.user.save()
         self.assertTrue(self.user.is_active)
 
     def test_user_str_method(self):
@@ -217,7 +222,7 @@ class TestRegisterUserView(APITestCase):
 
 class TestLoginUserView(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.')
+        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.', is_active=True)
 
     def test_login(self):
         data = {
@@ -269,7 +274,7 @@ class TestLoginUserView(APITestCase):
 
 class TestDeleteUSerView(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.')
+        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.', is_active=True)
         login_data = {
             'email': 'john@doe.com',
             'password': 'Johndoe123.'
@@ -316,7 +321,7 @@ class TestDeleteUSerView(APITestCase):
 
 class TestRefreshTokenView(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.')
+        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.', is_active=True)
         login_data = {
             'email': 'john@doe.com',
             'password': 'Johndoe123.'
@@ -347,7 +352,7 @@ class TestRefreshTokenView(APITestCase):
 
 class TestChangePasswordView(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.')
+        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.', is_active=True)
         login_data = {
             'email': 'john@doe.com',
             'password': 'Johndoe123.'
@@ -489,7 +494,7 @@ class TestLogoutUserView(APITestCase):
 
 class TestImageRequestUserHistoryView(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.')
+        self.user = User.objects.create_user(email='john@doe.com', password='Johndoe123.', is_active=True)
         self.image_request = ImageRequest.objects.create(user=self.user, status='COMPLETED')
         self.input_image1 = InputImage.objects.create(image_request=self.image_request)
         self.input_image2 = InputImage.objects.create(image_request=self.image_request)

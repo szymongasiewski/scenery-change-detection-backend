@@ -10,4 +10,8 @@ urlpatterns = [
     path('user/delete/', views.DeleteUserView.as_view(), name='user-delete'),
     path('user/change-password/', views.ChangePasswordView.as_view(), name='user-change-password'),
     path('change-detection/', views.ChangeDetectionView.as_view(), name='change-detection'),
+    path('verify-email/', views.VerifyEmailView.as_view(), name='verify-email'),
+    path('resend-otp/', views.ResendEmailVerificationView.as_view(), name='resend-otp'),
+    path('reset-password/', views.ResetPasswordView.as_view(), name='reset-password'),
+    path('reset-password-confirm/', views.ResetPasswordConfirmView.as_view(), name='password-reset-confirm'),
 ]
