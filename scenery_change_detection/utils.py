@@ -113,4 +113,5 @@ class ChangeDetection:
                              (1, 1, 1),
                              (0, 1, 0)), dtype=np.uint8)
         change_map = change_map.astype(np.uint8)
+        change_map = cv2.erode(change_map, kernel)
         return change_map
