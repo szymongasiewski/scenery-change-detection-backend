@@ -14,15 +14,15 @@ def delete_user_images(sender, instance, **kwargs):
     for request in image_requests:
         input_images = InputImage.objects.filter(image_request=request)
         for img in input_images:
-            absolute_path = join(settings.MEDIA_ROOT, img.image.name)
-            if default_storage.exists(absolute_path):
-                default_storage.delete(absolute_path)
+            #absolute_path = join(settings.MEDIA_ROOT, img.image.name)
+            if default_storage.exists(img.image.name):
+                default_storage.delete(img.image.name)
 
         output_image = OutputImage.objects.filter(image_request=request).first()
         if output_image is not None:
-            absolute_path = join(settings.MEDIA_ROOT, output_image.image.name)
-            if default_storage.exists(absolute_path):
-                default_storage.delete(absolute_path)
+            #absolute_path = join(settings.MEDIA_ROOT, output_image.image.name)
+            if default_storage.exists(output_image.image.name):
+                default_storage.delete(output_image.image.name)
 
 
 @receiver(post_save, sender=User)
