@@ -446,7 +446,7 @@ class ChangeDetectionSerializer(serializers.Serializer):
         block_size = validated_data['block_size']
 
         try:
-            change = ChangeDetection.change_detection(image1, image2, block_size)
+            change, percentage_of_change = ChangeDetection.change_detection(image1, image2, block_size)
         except Exception as e:
             image_request.status = 'FAILED'
             image_request.save()
@@ -476,4 +476,4 @@ class ChangeDetectionSerializer(serializers.Serializer):
 
         image_request.status = 'COMPLETED'
         image_request.save()
-        return output_image
+        return output_image, percentage_of_change

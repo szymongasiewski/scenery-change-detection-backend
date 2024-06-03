@@ -115,5 +115,5 @@ class ChangeDetection:
         change_map = change_map.astype(np.uint8)
         change_map = cv2.erode(change_map, kernel)
         num_of_white_pixels = np.sum(change_map == 255)
-        percentage_change = num_of_white_pixels / change_map.size * 100
+        percentage_change = np.round((num_of_white_pixels / change_map.size * 100), 2)
         return change_map, percentage_change
