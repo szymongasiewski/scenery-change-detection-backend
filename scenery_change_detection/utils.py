@@ -83,7 +83,7 @@ class ChangeDetection:
         return image
 
     @staticmethod
-    def change_detection(img1, img2, block_size, morphological_operation=None):
+    def change_detection(img1, img2, block_size, morphological_operation=None, morphological_iterations=1):
         image1 = ChangeDetection.read_image(img1)
         image2 = ChangeDetection.read_image(img2)
 
@@ -116,13 +116,13 @@ class ChangeDetection:
         # change_map = cv2.erode(change_map, kernel)
 
         if morphological_operation == 'erode':
-            change_map = cv2.erode(change_map, kernel)
+            change_map = cv2.erode(change_map, kernel, iterations=morphological_iterations)
         elif morphological_operation == 'dilate':
-            change_map = cv2.dilate(change_map, kernel)
+            change_map = cv2.dilate(change_map, kernel, iterations=morphological_iterations)
         elif morphological_operation == 'opening':
-            change_map = cv2.morphologyEx(change_map, cv2.MORPH_OPEN, kernel)
+            change_map = cv2.morphologyEx(change_map, cv2.MORPH_OPEN, kernel, iterations=morphological_iterations)
         elif morphological_operation == 'closing':
-            change_map = cv2.morphologyEx(change_map, cv2.MORPH_CLOSE, kernel)
+            change_map = cv2.morphologyEx(change_map, cv2.MORPH_CLOSE, kernel, iterations=morphological_iterations)
 
 
         num_of_white_pixels = np.sum(change_map == 255)

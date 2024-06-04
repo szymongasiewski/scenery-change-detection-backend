@@ -376,8 +376,28 @@ class RestrictedImageField(serializers.ImageField):
 class ChangeDetectionSerializer(serializers.Serializer):
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
-    block_size = serializers.IntegerField(required=False, default=3, min_value=2, max_value=10)
+    block_size = serializers.IntegerField(required=False, default=3, min_value=2, max_value=5)
     morphological_operation = serializers.ChoiceField(choices=['erode', 'dilate', 'opening', 'closing'], required=False, default=None)
+    morphological_iterations = serializers.IntegerField(required=False, default=1, min_value=1, max_value=3)
+
+    def validate_morphological_iterations(self, value):
+        image_request = self.context.get('image_request')
+        if value < 1 or value > 3:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid morphological_iterations. Iterations must be between 1 and 10.'
+            )
+            raise serializers.ValidationError('Invalid morphological_iterations. Iterations must be between 1 and 10.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Morphological iterations are valid. {value} iterations will be applied.'
+        )
+        return value
 
     def validate_morphological_operation(self, value):
         valid_operations = ['erode', 'dilate', 'opening', 'closing', None]
@@ -402,8 +422,8 @@ class ChangeDetectionSerializer(serializers.Serializer):
         return value
 
     def validate_block_size(self, value):
+        image_request = self.context.get('image_request')
         if value < 2 or value > 5:
-            image_request = self.context.get('image_request')
             image_request.status = 'FAILED'
             image_request.save()
             ProcessingLog.objects.create(
@@ -413,7 +433,11 @@ class ChangeDetectionSerializer(serializers.Serializer):
                             f' Message: Invalid block_size. Block size must be between 2 and 5.'
             )
             raise serializers.ValidationError('Invalid block size. Block size must be between 2 and 5.')
-
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Block size is valid. Block size is {value}.'
+        )
         return value
 
     def validate(self, attrs):
@@ -469,7 +493,12 @@ class ChangeDetectionSerializer(serializers.Serializer):
         block_size = validated_data['block_size']
 
         try:
-            change, percentage_of_change = ChangeDetection.change_detection(image1, image2, block_size, morphological_operation=validated_data['morphological_operation'])
+            change, percentage_of_change = ChangeDetection.change_detection(
+                image1, 
+                image2, 
+                block_size, 
+                morphological_operation=validated_data['morphological_operation'],
+                morphological_iterations=validated_data['morphological_iterations'])
         except Exception as e:
             image_request.status = 'FAILED'
             image_request.save()
