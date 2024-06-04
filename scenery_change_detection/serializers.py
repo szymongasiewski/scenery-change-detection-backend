@@ -377,6 +377,29 @@ class ChangeDetectionSerializer(serializers.Serializer):
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
     block_size = serializers.IntegerField(required=False, default=3, min_value=2, max_value=10)
+    morphological_operation = serializers.ChoiceField(choices=['erode', 'dilate', 'opening', 'closing'], required=False, default=None)
+
+    def validate_morphological_operation(self, value):
+        valid_operations = ['erode', 'dilate', 'opening', 'closing', None]
+        image_request = self.context.get('image_request')
+        if value is not None:
+            value = value.lower()
+        if value not in valid_operations:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid morphological operation. Valid operations are: erode, dilate, opening, closing.'
+            )
+            raise serializers.ValidationError('Invalid morphological operation. Valid operations are: erode, dilate, opening, closing.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Morphological operation is valid. {value} operation will be applied.'
+        )
+        return value
 
     def validate_block_size(self, value):
         if value < 2 or value > 5:
@@ -446,7 +469,7 @@ class ChangeDetectionSerializer(serializers.Serializer):
         block_size = validated_data['block_size']
 
         try:
-            change, percentage_of_change = ChangeDetection.change_detection(image1, image2, block_size)
+            change, percentage_of_change = ChangeDetection.change_detection(image1, image2, block_size, morphological_operation=validated_data['morphological_operation'])
         except Exception as e:
             image_request.status = 'FAILED'
             image_request.save()
