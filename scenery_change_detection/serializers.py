@@ -379,6 +379,48 @@ class ChangeDetectionSerializer(serializers.Serializer):
     block_size = serializers.IntegerField(required=False, default=3, min_value=2, max_value=5)
     morphological_operation = serializers.ChoiceField(choices=['erode', 'dilate', 'opening', 'closing'], required=False, default=None)
     morphological_iterations = serializers.IntegerField(required=False, default=1, min_value=1, max_value=3)
+    kernel_shape = serializers.ChoiceField(choices=['cross', 'ellipse', 'rect'], required=False, default='cross')
+    kernel_size = serializers.IntegerField(required=False, default=3, min_value=3, max_value=5)
+
+    def validate_kernel_size(self, value):
+        image_request = self.context.get('image_request')
+        if value < 3 or value > 5:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid kernel_size. Kernel size must be between 3 and 5.'
+            )
+            raise serializers.ValidationError('Invalid kernel_size. Kernel size must be between 3 and 5.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Kernel size is valid. Kernel size is {value}.'
+        )
+        return value
+    
+    def validate_kernel_shape(self, value):
+        valid_shapes = ['cross', 'ellipse', 'rect']
+        image_request = self.context.get('image_request')
+        if value not in valid_shapes:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid kernel_shape. Valid shapes are: cross, ellipse, rect.'
+            )
+            raise serializers.ValidationError('Invalid kernel_shape. Valid shapes are: cross, ellipse, rect.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Kernel shape is valid. {value} shape will be applied.'
+        )
+        return value
+
 
     def validate_morphological_iterations(self, value):
         image_request = self.context.get('image_request')
@@ -498,7 +540,9 @@ class ChangeDetectionSerializer(serializers.Serializer):
                 image2, 
                 block_size, 
                 morphological_operation=validated_data['morphological_operation'],
-                morphological_iterations=validated_data['morphological_iterations'])
+                morphological_iterations=validated_data['morphological_iterations'],
+                kernel_shape=validated_data['kernel_shape'],
+                kernel_size=validated_data['kernel_size'])
         except Exception as e:
             image_request.status = 'FAILED'
             image_request.save()

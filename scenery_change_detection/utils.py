@@ -81,9 +81,33 @@ class ChangeDetection:
             else:
                 image = cv2.resize(image, (max_size, int(max_size / aspect_ratio)))
         return image
+    
+    @staticmethod
+    def get_kernel(shape='cross', size=3):
+        if shape == 'cross':
+            return cv2.getStructuringElement(cv2.MORPH_CROSS, (size, size))
+        elif shape == 'ellipse':
+            return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+        elif shape == 'rect':
+            return cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
+        else:
+            return None
+        
 
     @staticmethod
-    def change_detection(img1, img2, block_size, morphological_operation=None, morphological_iterations=1):
+    def apply_morphological_operation(change_map, operation, kernel, iterations=1):
+        if operation == 'erode':
+            change_map = cv2.erode(change_map, kernel, iterations=iterations)
+        elif operation == 'dilate':
+            change_map = cv2.dilate(change_map, kernel, iterations=iterations)
+        elif operation == 'opening':
+            change_map = cv2.morphologyEx(change_map, cv2.MORPH_OPEN, kernel, iterations=iterations)
+        elif operation == 'closing':
+            change_map = cv2.morphologyEx(change_map, cv2.MORPH_CLOSE, kernel, iterations=iterations)
+        return change_map
+
+    @staticmethod
+    def change_detection(img1, img2, block_size, morphological_operation=None, morphological_iterations=1, kernel_shape='cross', kernel_size=3):
         image1 = ChangeDetection.read_image(img1)
         image2 = ChangeDetection.read_image(img2)
 
@@ -115,14 +139,18 @@ class ChangeDetection:
         change_map = change_map.astype(np.uint8)
         # change_map = cv2.erode(change_map, kernel)
 
-        if morphological_operation == 'erode':
-            change_map = cv2.erode(change_map, kernel, iterations=morphological_iterations)
-        elif morphological_operation == 'dilate':
-            change_map = cv2.dilate(change_map, kernel, iterations=morphological_iterations)
-        elif morphological_operation == 'opening':
-            change_map = cv2.morphologyEx(change_map, cv2.MORPH_OPEN, kernel, iterations=morphological_iterations)
-        elif morphological_operation == 'closing':
-            change_map = cv2.morphologyEx(change_map, cv2.MORPH_CLOSE, kernel, iterations=morphological_iterations)
+        # if morphological_operation == 'erode':
+        #     change_map = cv2.erode(change_map, kernel, iterations=morphological_iterations)
+        # elif morphological_operation == 'dilate':
+        #     change_map = cv2.dilate(change_map, kernel, iterations=morphological_iterations)
+        # elif morphological_operation == 'opening':
+        #     change_map = cv2.morphologyEx(change_map, cv2.MORPH_OPEN, kernel, iterations=morphological_iterations)
+        # elif morphological_operation == 'closing':
+        #     change_map = cv2.morphologyEx(change_map, cv2.MORPH_CLOSE, kernel, iterations=morphological_iterations)
+
+        if morphological_operation:
+            kernel = ChangeDetection.get_kernel(kernel_shape, kernel_size)
+            change_map = ChangeDetection.apply_morphological_operation(change_map, morphological_operation, kernel, iterations=morphological_iterations)
 
 
         num_of_white_pixels = np.sum(change_map == 255)
