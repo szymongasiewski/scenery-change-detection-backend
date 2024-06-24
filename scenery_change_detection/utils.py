@@ -74,9 +74,96 @@ class BaseChangeDetection(ABC):
 class PCAkMeansChangeDetection(BaseChangeDetection):
     def __init__(self, img_processing):
         super().__init__(img_processing)
+
+    def find_vector_set(self, diff_img, new_size, block_size):
+        vector_set = np.zeros((np.prod(diff_img.shape[:2]), block_size * block_size * diff_img.shape[2]))
+
+        i = 0
+        for j in range(0, new_size[0] - block_size + 1, block_size):
+            for k in range(0, new_size[1] - block_size + 1, block_size):
+                block = diff_img[j:j + block_size, k:k + block_size]
+                feature = block.ravel()
+                vector_set[i, :] = feature
+                i += 1
+
+        mean_vec = np.mean(vector_set, axis=0)
+        vector_set = vector_set - mean_vec
+
+        return vector_set, mean_vec
+
+    def find_fvs(self, evs, diff_img, mean_vec, new_size, block_size):
+        i = block_size // 2
+        feature_vector_set = []
+
+        while i < new_size[0] - block_size // 2:
+            j = block_size // 2
+            while j < new_size[1] - block_size // 2:
+                if block_size % 2 == 0:
+                    block = diff_img[i - block_size // 2:i + block_size // 2, j - block_size // 2:j + block_size // 2]
+                else:
+                    block = diff_img[i - block_size // 2:i + block_size // 2 + 1, j - block_size // 2:j + block_size // 2 + 1]
+                feature = block.flatten()
+                feature_vector_set.append(feature)
+                j = j + 1
+            i = i + 1
+
+        fvs = np.dot(feature_vector_set, evs)
+        fvs = fvs - mean_vec
+        return fvs
+
+    def clustering(self, fvs, components, new_size, block_size):
+        kmeans = KMeans(components, verbose=0)
+        kmeans.fit(fvs)
+        output = kmeans.predict(fvs)
+        count = Counter(output)
+
+        least_index = min(count, key=count.get)
+        change_map = None
+        if block_size % 2 == 0:
+            change_map = np.reshape(output, (new_size[0] - block_size, new_size[1] - block_size))
+        else:
+            change_map = np.reshape(output, (new_size[0] - block_size + 1, new_size[1] - block_size + 1))
+        return least_index, change_map
         
     def detect_changes(self, img1, img2, **kwargs):
-        pass
+        block_size = kwargs.get('block_size', 3)
+        morphological_operation = kwargs.get('morphological_operation', None)
+        morphological_iterations = kwargs.get('morphological_iterations', 1)
+        kernel_shape = kwargs.get('kernel_shape', 'cross')
+        kernel_size = kwargs.get('kernel_size', 3)
+
+        image1 = self.img_processing.read_image(img1)
+        image2 = self.img_processing.read_image(img2)
+
+        new_size = np.asarray(image1.shape) / block_size
+        new_size = new_size.astype(int) * block_size
+
+        image1 = self.img_processing.resize_image(image1, new_size)
+        image2 = self.img_processing.resize_image(image2, new_size)
+
+        diff_image = cv2.absdiff(image1, image2)
+
+        vector_set, mean_vec = self.find_vector_set(diff_image, new_size, block_size)
+
+        pca = PCA()
+        pca.fit(vector_set)
+        evs = pca.components_
+
+        fvs = self.find_fvs(evs, diff_image, mean_vec, new_size, block_size)
+
+        components = 2
+        least_index, change_map = self.clustering(fvs, components, new_size, block_size)
+        change_map[change_map == least_index] = 255
+        change_map[change_map != 255] = 0
+        change_map = change_map.astype(np.uint8)
+        
+        if morphological_operation:
+            kernel = self.img_processing.get_kernel(kernel_shape, kernel_size)
+            change_map = self.img_processing.apply_morphological_operation(change_map, morphological_operation, kernel, iterations=morphological_iterations)
+
+        num_of_white_pixels = np.sum(change_map == 255)
+        percentage_change = np.round((num_of_white_pixels / change_map.size * 100), 2)
+        return change_map, percentage_change
 
 
 class ChangeDetection:
