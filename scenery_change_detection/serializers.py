@@ -19,6 +19,7 @@ from io import BytesIO
 from django.conf import settings
 from django.utils import timezone
 from django.core.mail import send_mail
+import json
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -374,10 +375,10 @@ class RestrictedImageField(serializers.ImageField):
 
 
 class ChangeDetectionSerializer(serializers.Serializer):
-    algorithm = serializers.ChoiceField(choices=['pca_kemans', 'img_diff'], required=True)
+    algorithm = serializers.ChoiceField(choices=['pca_kmeans', 'img_diff'], required=True)
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
-    parameters = serializers.DictField(required=False, default=dict)
+    parameters = serializers.JSONField(required=False, default={})
 
     def validate_parameters(self, value):
         image_request = self.context.get('image_request')

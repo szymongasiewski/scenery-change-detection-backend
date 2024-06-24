@@ -78,7 +78,7 @@ class ImageProcessing:
 
             if condition:
                 x, y, w, h = cv2.boundingRect(contour)
-                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
 
         return image
     
@@ -202,9 +202,19 @@ class PCAkMeansChangeDetection(BaseChangeDetection):
         
         contours = self.img_processing.get_contours(change_map)
 
-        image1_with_contours = self.img_processing.draw_contours(image1, contours, area_lower_limit, area_upper_limit)
-        image2_with_contours = self.img_processing.draw_contours(image2, contours, area_lower_limit, area_upper_limit)
+        if not isinstance(image1, np.ndarray):
+            image1 = np.array(image1, dtype=np.uint8)
+        elif image1.dtype != np.uint8:
+            image1 = image1.astype(np.uint8)
 
+        image1_with_contours = self.img_processing.draw_contours(image1, contours, area_lower_limit, area_upper_limit)
+
+        if not isinstance(image2, np.ndarray):
+            image2 = np.array(image2, dtype=np.uint8)
+        elif image2.dtype != np.uint8:
+            image2 = image2.astype(np.uint8)
+        image2_with_contours = self.img_processing.draw_contours(image2, contours, area_lower_limit, area_upper_limit)
+        
         return change_map, percentage_change, image1_with_contours, image2_with_contours
 
 
