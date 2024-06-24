@@ -1,4 +1,5 @@
 import cv2
+import imutils
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -8,11 +9,14 @@ from abc import ABC, abstractmethod
 
 class ImageProcessing:
     @staticmethod
-    def read_image(img):
+    def read_image(img, grayscale=False):
         img.seek(0)
         image_data = img.read()
         image_array = np.frombuffer(image_data, np.uint8)
-        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+        if grayscale:
+            image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
+        else:
+            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
         return image
     
     @staticmethod
@@ -164,6 +168,49 @@ class PCAkMeansChangeDetection(BaseChangeDetection):
         num_of_white_pixels = np.sum(change_map == 255)
         percentage_change = np.round((num_of_white_pixels / change_map.size * 100), 2)
         return change_map, percentage_change
+
+
+class ImageDifferencingChangeDetection(BaseChangeDetection):
+    def __init__(self, img_processing):
+        super().__init__(img_processing)
+
+    def detect_changes(self, img1, img2, **kwargs):
+        image1 = self.img_processing.read_image(img1, grayscale=True)
+        image2 = self.img_processing.read_image(img2, grayscale=True)
+
+        image2 = self.img_processing.resize_image(image2, (image1.shape[0], image1.shape[1]))
+        
+        diff_image = cv2.absdiff(image1, image2)
+
+        # diferent thresholding methods and manual thresholding
+        thresholded = cv2.threshold(diff_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        
+        # morphological operations?
+
+        # thresholded returned as change map
+
+        # image with contours returned as change map
+        contours = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = imutils.grab_contours(contours)
+
+        for contour in contours:
+            # parameterize the area area greater than and less than
+            if cv2.contourArea(contour) > 100:
+                x, y, w, h = cv2.boundingRect(contour)
+                cv2.rectangle(image1, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                cv2.rectangle(image2, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # image with bounding boxes returned as change map
+        x = np.zeros((image1.shape[0], 10, 3), dtype=np.uint8)
+        
+        # horizontal stack of images
+        result = np.hstack((image1, x, image2))
+        # return one of images with bounding boxes
+        return result
+
+        
+
+
 
 
 class ChangeDetection:
