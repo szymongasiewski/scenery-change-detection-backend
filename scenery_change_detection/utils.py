@@ -3,6 +3,80 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from collections import Counter
+from abc import ABC, abstractmethod
+
+
+class ImageProcessing:
+    @staticmethod
+    def read_image(img):
+        img.seek(0)
+        image_data = img.read()
+        image_array = np.frombuffer(image_data, np.uint8)
+        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+        return image
+    
+    @staticmethod
+    def resize_image(img, size):
+        image = cv2.resize(img, (size[1], size[0])).astype(int)
+        return image
+    
+    @staticmethod
+    def resize_to_fit(image, max_size=1024):
+        if image.shape[0] > max_size or image.shape[1] > max_size:
+            aspect_ratio = image.shape[1] / image.shape[0]
+            if image.shape[0] > image.shape[1]:
+                image = cv2.resize(image, (int(max_size * aspect_ratio), max_size))
+            else:
+                image = cv2.resize(image, (max_size, int(max_size / aspect_ratio)))
+        return image
+    
+    @staticmethod
+    def get_kernel(shape='cross', size=3):
+        if shape == 'cross':
+            return cv2.getStructuringElement(cv2.MORPH_CROSS, (size, size))
+        elif shape == 'ellipse':
+            return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+        elif shape == 'rect':
+            return cv2.getStructuringElement(cv2.MORPH_RECT, (size, size))
+        else:
+            return None
+        
+    @staticmethod
+    def apply_morphological_operation(image, operation, kernel, iterations=1):
+        if operation == 'erode':
+            image = cv2.erode(image, kernel, iterations=iterations)
+        elif operation == 'dilate':
+            image = cv2.dilate(image, kernel, iterations=iterations)
+        elif operation == 'opening':
+            image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel, iterations=iterations)
+        elif operation == 'closing':
+            image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
+        return image
+
+
+class ChangeDetectionAdapter:
+    def __init__(self, algorithm):
+        self.algorithm = algorithm
+
+    def detect_changes(self, img1, img2, **kwargs):
+        return self.algorithm.detect_changes(img1, img2, **kwargs)
+    
+
+class BaseChangeDetection(ABC):
+    def __init__(self, img_processing):
+        self.img_processing = img_processing
+
+    @abstractmethod
+    def detect_changes(self, img1, img2, **kwargs):
+        pass
+
+
+class PCAkMeansChangeDetection(BaseChangeDetection):
+    def __init__(self, img_processing):
+        super().__init__(img_processing)
+        
+    def detect_changes(self, img1, img2, **kwargs):
+        pass
 
 
 class ChangeDetection:
