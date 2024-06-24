@@ -81,6 +81,12 @@ class ImageProcessing:
                 cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
         return image
+    
+    @staticmethod
+    def calculate_percentage_change(change_map):
+        num_of_white_pixels = np.sum(change_map == 255)
+        percentage_change = np.round((num_of_white_pixels / change_map.size * 100), 2)
+        return percentage_change
 
 
 class ChangeDetectionAdapter:
@@ -160,6 +166,8 @@ class PCAkMeansChangeDetection(BaseChangeDetection):
         morphological_iterations = kwargs.get('morphological_iterations', 1)
         kernel_shape = kwargs.get('kernel_shape', 'cross')
         kernel_size = kwargs.get('kernel_size', 3)
+        area_lower_limit = kwargs.get('area_lower_limit', None)
+        area_upper_limit = kwargs.get('area_upper_limit', None)
 
         image1 = self.img_processing.read_image(img1)
         image2 = self.img_processing.read_image(img2)
@@ -190,9 +198,14 @@ class PCAkMeansChangeDetection(BaseChangeDetection):
             kernel = self.img_processing.get_kernel(kernel_shape, kernel_size)
             change_map = self.img_processing.apply_morphological_operation(change_map, morphological_operation, kernel, iterations=morphological_iterations)
 
-        num_of_white_pixels = np.sum(change_map == 255)
-        percentage_change = np.round((num_of_white_pixels / change_map.size * 100), 2)
-        return change_map, percentage_change
+        percentage_change = self.img_processing.calculate_percentage_change(change_map)
+        
+        contours = self.img_processing.get_contours(change_map)
+
+        image1_with_contours = self.img_processing.draw_contours(image1, contours, area_lower_limit, area_upper_limit)
+        image2_with_contours = self.img_processing.draw_contours(image2, contours, area_lower_limit, area_upper_limit)
+
+        return change_map, percentage_change, image1_with_contours, image2_with_contours
 
 
 class ImageDifferencingChangeDetection(BaseChangeDetection):
@@ -200,35 +213,37 @@ class ImageDifferencingChangeDetection(BaseChangeDetection):
         super().__init__(img_processing)
 
     def detect_changes(self, img1, img2, **kwargs):
-        image1 = self.img_processing.read_image(img1, grayscale=True)
-        image2 = self.img_processing.read_image(img2, grayscale=True)
+        morphological_operation = kwargs.get('morphological_operation', None)
+        morphological_iterations = kwargs.get('morphological_iterations', 1)
+        kernel_shape = kwargs.get('kernel_shape', 'cross')
+        kernel_size = kwargs.get('kernel_size', 3)
+        area_lower_limit = kwargs.get('area_lower_limit', None)
+        area_upper_limit = kwargs.get('area_upper_limit', None)
+
+        image1 = self.img_processing.read_image(img1)
+        image2 = self.img_processing.read_image(img2)
 
         image2 = self.img_processing.resize_image(image2, (image1.shape[0], image1.shape[1]))
         
         diff_image = cv2.absdiff(image1, image2)
 
         # diferent thresholding methods and manual thresholding
-        thresholded = cv2.threshold(diff_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        change_map = cv2.threshold(diff_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         
-        # morphological operations?
+        change_map = change_map.astype(np.uint8)
 
-        # thresholded returned as change map
+        if morphological_operation:
+            kernel = self.img_processing.get_kernel(kernel_shape, kernel_size)
+            change_map = self.img_processing.apply_morphological_operation(change_map, morphological_operation, kernel, iterations=morphological_iterations)
 
-        # image with contours returned as change map
-        contours = self.img_processing.get_contours(thresholded)
+        percentage_change = self.img_processing.calculate_percentage_change(change_map)
 
-        # draw contours on image
-        image1_with_contours = self.img_processing.draw_contours(image1, contours)
-        image2_with_contours = self.img_processing.draw_contours(image2, contours)
+        contours = self.img_processing.get_contours(change_map)
 
+        image1_with_contours = self.img_processing.draw_contours(image1, contours, area_lower_limit, area_upper_limit)
+        image2_with_contours = self.img_processing.draw_contours(image2, contours, area_lower_limit, area_upper_limit)
 
-        # image with bounding boxes returned as change map
-        x = np.zeros((image1_with_contours.shape[0], 10, 3), dtype=np.uint8)
-        
-        # horizontal stack of images
-        result = np.hstack((image1_with_contours, x, image2_with_contours))
-        # return one of images with bounding boxes
-        return result
+        return change_map, percentage_change, image1_with_contours, image2_with_contours
 
 
 
