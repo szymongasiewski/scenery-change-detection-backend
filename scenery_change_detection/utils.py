@@ -56,6 +56,31 @@ class ImageProcessing:
         elif operation == 'closing':
             image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel, iterations=iterations)
         return image
+    
+    @staticmethod
+    def get_contours(image):
+        contours = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours = imutils.grab_contours(contours)
+        return contours
+    
+    @staticmethod
+    def draw_contours(image, contours, lower_limit=None, upper_limit=None):
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if lower_limit and upper_limit:
+                condition = lower_limit < area < upper_limit
+            elif lower_limit:
+                condition = area > lower_limit
+            elif upper_limit:
+                condition = area < upper_limit
+            else:
+                condition = True
+
+            if condition:
+                x, y, w, h = cv2.boundingRect(contour)
+                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        return image
 
 
 class ChangeDetectionAdapter:
@@ -190,26 +215,20 @@ class ImageDifferencingChangeDetection(BaseChangeDetection):
         # thresholded returned as change map
 
         # image with contours returned as change map
-        contours = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours = imutils.grab_contours(contours)
+        contours = self.img_processing.get_contours(thresholded)
 
-        for contour in contours:
-            # parameterize the area area greater than and less than
-            if cv2.contourArea(contour) > 100:
-                x, y, w, h = cv2.boundingRect(contour)
-                cv2.rectangle(image1, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.rectangle(image2, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        # draw contours on image
+        image1_with_contours = self.img_processing.draw_contours(image1, contours)
+        image2_with_contours = self.img_processing.draw_contours(image2, contours)
+
 
         # image with bounding boxes returned as change map
-        x = np.zeros((image1.shape[0], 10, 3), dtype=np.uint8)
+        x = np.zeros((image1_with_contours.shape[0], 10, 3), dtype=np.uint8)
         
         # horizontal stack of images
-        result = np.hstack((image1, x, image2))
+        result = np.hstack((image1_with_contours, x, image2_with_contours))
         # return one of images with bounding boxes
         return result
-
-        
-
 
 
 
