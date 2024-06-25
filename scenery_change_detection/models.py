@@ -81,7 +81,7 @@ class OutputImage(models.Model):
         upload_to=user_directory_path_output_images,
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]
     )
-    image_request = models.ForeignKey(ImageRequest, on_delete=models.CASCADE, related_name='output_image', null=False)
+    image_request = models.ForeignKey(ImageRequest, on_delete=models.CASCADE, related_name='output_images', null=False)
 
 
 class ProcessingLog(models.Model):

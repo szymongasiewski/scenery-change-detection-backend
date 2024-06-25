@@ -325,11 +325,11 @@ class OutputImageSerializer(serializers.ModelSerializer):
 
 class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
     input_images = InputImageSerializer(many=True, read_only=True)
-    output_image = OutputImageSerializer(read_only=True)
+    output_images = OutputImageSerializer(many=True, read_only=True)
 
     class Meta:
         model = ImageRequest
-        fields = ['id', 'created_at', 'status', 'input_images', 'output_image']
+        fields = ['id', 'created_at', 'status', 'input_images', 'output_images']
 
 
 class RestrictedImageField(serializers.ImageField):
