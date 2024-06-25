@@ -411,7 +411,29 @@ class ChangeDetectionSerializer(serializers.Serializer):
         if area_upper_limit is not None:
             self.validate_area_upper_limit(area_upper_limit, image_request)
 
+        if area_lower_limit is not None and area_upper_limit is not None:
+            self.validate_area_limits(area_lower_limit, area_upper_limit, image_request)
+
         return value
+    
+    def validate_area_limits(self, area_lower_limit, area_upper_limit, image_request):
+        if area_lower_limit > area_upper_limit:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area limits. Area lower limit must be less than area upper limit.'
+            )
+            raise serializers.ValidationError('Invalid area limits. Area lower limit must be less than area upper limit.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Area limits are valid. Area lower limit is {area_lower_limit}.'
+                        f' Area upper limit is {area_upper_limit}.'
+        )
+
     
     def validate_area_lower_limit(self, area_lower_limit, image_request):
         if not isinstance(area_lower_limit, int):
