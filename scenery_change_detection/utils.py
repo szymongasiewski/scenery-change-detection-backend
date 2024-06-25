@@ -20,8 +20,12 @@ class ImageProcessing:
         return image
     
     @staticmethod
+    def convert_to_grayscale(image):
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    @staticmethod
     def resize_image(img, size):
-        image = cv2.resize(img, (size[1], size[0])).astype(int)
+        image = cv2.resize(img, (size[1], size[0])).astype(np.uint8)
         return image
     
     @staticmethod
@@ -233,10 +237,13 @@ class ImageDifferencingChangeDetection(BaseChangeDetection):
         image1 = self.img_processing.read_image(img1)
         image2 = self.img_processing.read_image(img2)
 
-        image2 = self.img_processing.resize_image(image2, (image1.shape[0], image1.shape[1]))
-        
-        diff_image = cv2.absdiff(image1, image2)
+        image1_gray = self.img_processing.convert_to_grayscale(image1)
+        image2_gray = self.img_processing.convert_to_grayscale(image2)
 
+        image2_gray = self.img_processing.resize_image(image2_gray, (image1_gray.shape[0], image1_gray.shape[1]))
+        
+        diff_image = cv2.absdiff(image1_gray, image2_gray)
+        
         # diferent thresholding methods and manual thresholding
         change_map = cv2.threshold(diff_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         
@@ -247,7 +254,7 @@ class ImageDifferencingChangeDetection(BaseChangeDetection):
             change_map = self.img_processing.apply_morphological_operation(change_map, morphological_operation, kernel, iterations=morphological_iterations)
 
         percentage_change = self.img_processing.calculate_percentage_change(change_map)
-
+        
         contours = self.img_processing.get_contours(change_map)
 
         if not isinstance(image1, np.ndarray):
