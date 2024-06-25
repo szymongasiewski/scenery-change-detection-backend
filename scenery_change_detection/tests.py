@@ -517,6 +517,8 @@ class TestImageRequestUserHistoryView(APITestCase):
         self.assertEqual(response.data['previous'], None)
         self.assertIsNotNone(response.data['results'])
         self.assertIsNotNone(response.data['results'][0]['created_at'])
+        self.assertIsNotNone(response.data['results'][0]['algorithm'])
+        self.assertIsNotNone(response.data['results'][0]['parameters'])
         self.assertEqual(response.data['results'][0]['status'], 'COMPLETED')
         self.assertIsNotNone(response.data['results'][0]['input_images'])
         self.assertIsNotNone(response.data['results'][0]['output_images'])

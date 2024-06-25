@@ -329,7 +329,7 @@ class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ImageRequest
-        fields = ['id', 'created_at', 'status', 'input_images', 'output_images']
+        fields = ['id', 'algorithm', 'parameters', 'created_at', 'status', 'input_images', 'output_images']
 
 
 class RestrictedImageField(serializers.ImageField):
