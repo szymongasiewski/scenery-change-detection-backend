@@ -13,7 +13,7 @@ import re
 from PIL import Image as PilImage
 from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog, OneTimePassword
 from rest_framework import status
-from .utils import ChangeDetection, ChangeDetectionAdapter, ImageProcessing, ImageDifferencingChangeDetection, PCAkMeansChangeDetection
+from .utils import ChangeDetectionAdapter, ImageProcessing, ImageDifferencingChangeDetection, PCAkMeansChangeDetection
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from io import BytesIO
 from django.conf import settings
