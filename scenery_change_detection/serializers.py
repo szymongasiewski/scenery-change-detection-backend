@@ -722,7 +722,7 @@ class ChangeDetectionSerializer(serializers.Serializer):
         #block_size = validated_data['block_size']
 
         try:
-            change, percentage_of_change, _, _ = adapter.detect_changes(
+            change, percentage_of_change, boxes1, boxes2 = adapter.detect_changes(
                 image1, 
                 image2, 
                 **params)
@@ -753,6 +753,38 @@ class ChangeDetectionSerializer(serializers.Serializer):
                         f' Message: Created OutputImage object with id: {output_image.id}.'
         )
 
+        buffer = cv2.imencode(".jpg", boxes1)[1]
+        result_image_file = InMemoryUploadedFile(
+            BytesIO(buffer),
+            None,
+            'output_image1.jpg',
+            'image/jpeg',
+            len(buffer),
+            None
+        )
+        output_image1 = OutputImage.objects.create(image_request=image_request, image=result_image_file)
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created OutputImage object with id: {output_image1.id}.'
+        )
+
+        buffer = cv2.imencode(".jpg", boxes2)[1]
+        result_image_file = InMemoryUploadedFile(
+            BytesIO(buffer),
+            None,
+            'output_image2.jpg',
+            'image/jpeg',
+            len(buffer),
+            None
+        )
+        output_image2 = OutputImage.objects.create(image_request=image_request, image=result_image_file)
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Created OutputImage object with id: {output_image2.id}.'
+        )
+
         image_request.status = 'COMPLETED'
         image_request.save()
-        return output_image, percentage_of_change
+        return output_image, percentage_of_change, output_image1, output_image2

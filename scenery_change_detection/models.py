@@ -36,6 +36,11 @@ class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
 
 
 class ImageRequest(models.Model):
+    ALGORITHM_CHOICES = [
+        ('pca_kmeans', 'PCA k-Means'),
+        ('img_diff', 'Image Difference'),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -49,6 +54,8 @@ class ImageRequest(models.Model):
         ],
         default='PENDING'
     )
+    algorithm = models.CharField(max_length=20, choices=ALGORITHM_CHOICES, default='pca_kmeans')
+    parameters = models.JSONField(default=dict)
 
 
 def user_directory_path_input_images(instance, filename):
@@ -74,7 +81,7 @@ class OutputImage(models.Model):
         upload_to=user_directory_path_output_images,
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]
     )
-    image_request = models.OneToOneField(ImageRequest, on_delete=models.CASCADE, related_name='output_image', null=False)
+    image_request = models.ForeignKey(ImageRequest, on_delete=models.CASCADE, related_name='output_image', null=False)
 
 
 class ProcessingLog(models.Model):
