@@ -1,10 +1,10 @@
-version: "3.8"
-
 services:
   db:
     image: postgres:13
     volumes:
       - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5434:5432"
     environment:
       POSTGRES_DB: scd
       POSTGRES_USER: szymon
