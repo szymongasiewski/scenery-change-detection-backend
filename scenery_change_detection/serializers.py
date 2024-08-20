@@ -21,6 +21,8 @@ from django.utils import timezone
 from django.core.mail import send_mail
 import json
 
+MAX_AREA_LIMIT = 1024 * 1024
+
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])
@@ -456,6 +458,16 @@ class ChangeDetectionSerializer(serializers.Serializer):
                             f' Message: Invalid area_lower_limit. Area lower limit must be greater than 0.'
             )
             raise serializers.ValidationError('Invalid area_lower_limit. Area lower limit must be greater than 0.')
+        if area_lower_limit > MAX_AREA_LIMIT:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_lower_limit. Area lower limit must not exceed {MAX_AREA_LIMIT}.'
+            )
+            raise serializers.ValidationError(f'Invalid area_lower_limit. Area lower limit must not exceed {MAX_AREA_LIMIT}.')
         ProcessingLog.objects.create(
             image_request=image_request,
             log_message=f'Request {image_request.id} status: {image_request.status}.'
@@ -484,6 +496,16 @@ class ChangeDetectionSerializer(serializers.Serializer):
                             f' Message: Invalid area_upper_limit. Area upper limit must be greater than 0.'
             )
             raise serializers.ValidationError('Invalid area_upper_limit. Area upper limit must be greater than 0.')
+        if area_upper_limit > MAX_AREA_LIMIT:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_upper_limit. Area upper limit must not exceed {MAX_AREA_LIMIT}.'
+            )
+            raise serializers.ValidationError(f'Invalid area_upper_limit. Area upper limit must not exceed {MAX_AREA_LIMIT}.')
         ProcessingLog.objects.create(
             image_request=image_request,
             log_message=f'Request {image_request.id} status: {image_request.status}.'
