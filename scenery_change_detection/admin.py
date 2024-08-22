@@ -36,15 +36,17 @@ class ImageAdmin(admin.ModelAdmin):
 
 
 class InputImageAdmin(ImageAdmin):
-    list_display = ImageAdmin.list_display + ('output_image_reference',)
-    readonly_fields = ImageAdmin.readonly_fields + ('output_image_reference',)
+    list_display = ImageAdmin.list_display + ('output_images_links',)
+    readonly_fields = ImageAdmin.readonly_fields + ('output_images_links',)
 
-    def output_image_reference(self, obj):
-        output_image = obj.image_request.output_image
-        url = reverse('admin:scenery_change_detection_outputimage_change', args=[output_image.id])
-        return format_html('<a href="{}">{}<a/>', url, output_image.id)
-
-    output_image_reference.short_description = 'Output Image ID'
+    def output_images_links(self, obj):
+        links = []
+        for output_image in obj.image_request.output_images.all():
+            url = reverse('admin:scenery_change_detection_outputimage_change', args=[output_image.id])
+            links.append(format_html('<a href="{}">{}</a>', url, output_image.id))
+        return format_html_join(', ', '{}', ((link,) for link in links))
+    
+    output_images_links.short_description = 'Output Images Links'
 
 
 class OutputImageAdmin(ImageAdmin):
