@@ -1,7 +1,7 @@
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.generics import GenericAPIView, ListAPIView, RetrieveAPIView
+from rest_framework.generics import GenericAPIView, ListAPIView, RetrieveAPIView, DestroyAPIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -11,6 +11,7 @@ from .serializers import (UserRegisterSerializer, LoginSerializer, RefreshTokenS
                           ResendEmailVerificationSerializer, ResetPasswordSerializer, ResetPasswordConfirmSerializer, ImageRequestSerializer)
 from .models import ImageRequest, ProcessingLog
 import json
+import boto3
 
 
 class RegisterUserView(GenericAPIView):
@@ -154,6 +155,31 @@ class ImageRequestView(RetrieveAPIView):
     def get_queryset(self):
         user = self.request.user
         return ImageRequest.objects.filter(user=user).prefetch_related('input_images', 'output_images')
+    
+
+class ImageRequestDeleteView(DestroyAPIView):
+    queryset = ImageRequest.objects.all()
+    serializer_class = ImageRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return ImageRequest.objects.filter(user=user)
+    
+    def perform_destroy(self, instance):
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            )
+        
+        for output_image in instance.output_images.all():
+            s3_client.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=output_image.image.name)
+
+        for input_image in instance.input_images.all():
+            s3_client.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=input_image.image.name)
+
+        instance.delete()
 
 
 class ImageRequestUserHistoryView(ListAPIView):
