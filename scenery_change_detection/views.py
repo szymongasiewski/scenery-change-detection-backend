@@ -1,14 +1,14 @@
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.generics import GenericAPIView, ListAPIView
+from rest_framework.generics import GenericAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (UserRegisterSerializer, LoginSerializer, RefreshTokenSerializer, LogoutSerializer,
                           OutputImageSerializer, ChangePasswordSerializer, DeleteUserSerializer,
                           ImageRequestUserHistorySerializer, ChangeDetectionSerializer, VerifyEmailSerializer,
-                          ResendEmailVerificationSerializer, ResetPasswordSerializer, ResetPasswordConfirmSerializer)
+                          ResendEmailVerificationSerializer, ResetPasswordSerializer, ResetPasswordConfirmSerializer, ImageRequestSerializer)
 from .models import ImageRequest, ProcessingLog
 import json
 
@@ -144,6 +144,16 @@ class LogoutUserView(GenericAPIView):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         response.delete_cookie('refresh_token')
         return response
+    
+
+class ImageRequestView(RetrieveAPIView):
+    queryset = ImageRequest.objects.all()
+    serializer_class = ImageRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return ImageRequest.objects.filter(user=user).prefetch_related('input_images', 'output_images')
 
 
 class ImageRequestUserHistoryView(ListAPIView):
@@ -154,7 +164,7 @@ class ImageRequestUserHistoryView(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return (ImageRequest.objects.filter(user=user).order_by('-created_at')
-                .prefetch_related('input_images', 'output_images'))
+                .prefetch_related('input_images'))
 
 
 class ChangeDetectionView(GenericAPIView):

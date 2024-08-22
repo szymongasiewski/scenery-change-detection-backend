@@ -325,9 +325,17 @@ class OutputImageSerializer(serializers.ModelSerializer):
         fields = ['image']
 
 
-class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
+class ImageRequestSerializer(serializers.ModelSerializer):
     input_images = InputImageSerializer(many=True, read_only=True)
     output_images = OutputImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ImageRequest
+        fields = ['id', 'algorithm', 'created_at', 'status', 'input_images', 'output_images', 'parameters']
+
+
+class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
+    input_images = InputImageSerializer(many=True, read_only=True)
 
     ALGORITHM_NAME_MAP = {
         'pca_kmeans': 'PCA k-Means',
@@ -336,7 +344,7 @@ class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ImageRequest
-        fields = ['id', 'algorithm', 'parameters', 'created_at', 'status', 'input_images', 'output_images']
+        fields = ['id', 'algorithm', 'created_at', 'status', 'input_images']
 
     def get_full_algorithm_name(self, name):
         return self.ALGORITHM_NAME_MAP.get(name, name)
