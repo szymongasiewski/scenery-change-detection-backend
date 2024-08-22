@@ -329,9 +329,24 @@ class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
     input_images = InputImageSerializer(many=True, read_only=True)
     output_images = OutputImageSerializer(many=True, read_only=True)
 
+    ALGORITHM_NAME_MAP = {
+        'pca_kmeans': 'PCA k-Means',
+        'img_diff': 'Image Difference'
+    }
+
     class Meta:
         model = ImageRequest
         fields = ['id', 'algorithm', 'parameters', 'created_at', 'status', 'input_images', 'output_images']
+
+    def get_full_algorithm_name(self, name):
+        return self.ALGORITHM_NAME_MAP.get(name, name)
+    
+    def to_representation(self, instance):
+        representaton = super().to_representation(instance)
+        name = representaton.get('algorithm')
+        full_name = self.get_full_algorithm_name(name)
+        representaton['algorithm'] = full_name
+        return representaton
 
 
 class RestrictedImageField(serializers.ImageField):
@@ -809,4 +824,4 @@ class ChangeDetectionSerializer(serializers.Serializer):
 
         image_request.status = 'COMPLETED'
         image_request.save()
-        return output_image, percentage_of_change, output_image1, output_image2
+        return image_request.id, output_image, percentage_of_change, output_image1, output_image2
