@@ -329,9 +329,24 @@ class ImageRequestSerializer(serializers.ModelSerializer):
     input_images = InputImageSerializer(many=True, read_only=True)
     output_images = OutputImageSerializer(many=True, read_only=True)
 
+    ALGORITHM_NAME_MAP = {
+        'pca_kmeans': 'PCA k-Means',
+        'img_diff': 'Image Difference'
+    }
+
     class Meta:
         model = ImageRequest
         fields = ['id', 'algorithm', 'created_at', 'status', 'input_images', 'output_images', 'parameters']
+
+    def get_full_algorithm_name(self, name):
+        return self.ALGORITHM_NAME_MAP.get(name, name)
+    
+    def to_representation(self, instance):
+        representaton = super().to_representation(instance)
+        name = representaton.get('algorithm')
+        full_name = self.get_full_algorithm_name(name)
+        representaton['algorithm'] = full_name
+        return representaton
 
 
 class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
