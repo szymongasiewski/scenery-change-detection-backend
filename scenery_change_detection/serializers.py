@@ -417,7 +417,7 @@ class RestrictedImageField(serializers.ImageField):
 
 
 class ChangeDetectionSerializer(serializers.Serializer):
-    algorithm = serializers.ChoiceField(choices=['pca_kmeans', 'img_diff'], required=True)
+    algorithm = serializers.ChoiceField(choices=['pca_kmeans', 'img_diff', 'bg_sub'], required=True)
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
     parameters = serializers.JSONField(required=False, default={})
@@ -554,7 +554,7 @@ class ChangeDetectionSerializer(serializers.Serializer):
         return area_upper_limit
 
     def validate_algorithm(self, value):
-        valid_algorithms = ['pca_kmeans', 'img_diff']
+        valid_algorithms = ['pca_kmeans', 'img_diff', 'bg_sub']
         image_request = self.context.get('image_request')
         if value not in valid_algorithms:
             image_request.status = 'FAILED'
