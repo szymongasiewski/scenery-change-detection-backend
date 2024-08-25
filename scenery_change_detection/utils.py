@@ -219,7 +219,7 @@ class PCAkMeansChangeDetection(BaseChangeDetection):
             image2 = image2.astype(np.uint8)
         image2_with_contours = self.img_processing.draw_contours(image2, contours, area_lower_limit, area_upper_limit)
         
-        return change_map, percentage_change, image1_with_contours, image2_with_contours
+        return [change_map, image1_with_contours, image2_with_contours], percentage_change
 
 
 class ImageDifferencingChangeDetection(BaseChangeDetection):
@@ -271,4 +271,27 @@ class ImageDifferencingChangeDetection(BaseChangeDetection):
 
         image2_with_contours = self.img_processing.draw_contours(image2, contours, area_lower_limit, area_upper_limit)
 
-        return change_map, percentage_change, image1_with_contours, image2_with_contours
+        return [change_map, image1_with_contours, image2_with_contours], percentage_change
+
+
+class BackgroundSubstractionChangeDetection(BaseChangeDetection):
+    def __init__(self, img_processing):
+        super().__init__(img_processing)
+
+    def detect_changes(self, img1, img2, **kwargs):
+        image1 = self.img_processing.read_image(img1)
+        image2 = self.img_processing.read_image(img2)
+        image1_gray = self.img_processing.convert_to_grayscale(image1)
+        image2_gray = self.img_processing.convert_to_grayscale(image2)
+
+        image2_gray = self.img_processing.resize_image(image2_gray, (image1_gray.shape[0], image1_gray.shape[1]))
+        backSub = cv2.createBackgroundSubtractorMOG2()
+        fgMask1 = backSub.apply(image1_gray)
+        fgMask2 = backSub.apply(image2_gray)
+        diff_image = cv2.absdiff(fgMask2, fgMask1)
+        change_map = cv2.threshold(diff_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        change_map = change_map.astype(np.uint8)
+        change_map = cv2.bitwise_not(change_map)
+        return [change_map], self.img_processing.calculate_percentage_change(change_map)
+        
+

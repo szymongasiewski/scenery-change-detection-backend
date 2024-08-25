@@ -13,7 +13,7 @@ import re
 from PIL import Image as PilImage
 from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog, OneTimePassword
 from rest_framework import status
-from .utils import ChangeDetectionAdapter, ImageProcessing, ImageDifferencingChangeDetection, PCAkMeansChangeDetection
+from .utils import ChangeDetectionAdapter, ImageProcessing, ImageDifferencingChangeDetection, PCAkMeansChangeDetection, BackgroundSubstractionChangeDetection
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from io import BytesIO
 from django.conf import settings
@@ -331,7 +331,8 @@ class ImageRequestSerializer(serializers.ModelSerializer):
 
     ALGORITHM_NAME_MAP = {
         'pca_kmeans': 'PCA k-Means',
-        'img_diff': 'Image Difference'
+        'img_diff': 'Image Difference',
+        'bg_sub': 'Background Subtraction'
     }
 
     class Meta:
@@ -354,7 +355,8 @@ class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
 
     ALGORITHM_NAME_MAP = {
         'pca_kmeans': 'PCA k-Means',
-        'img_diff': 'Image Difference'
+        'img_diff': 'Image Difference',
+        'bg_sub': 'Background Subtraction'
     }
 
     class Meta:
@@ -759,7 +761,7 @@ class ChangeDetectionSerializer(serializers.Serializer):
 
         algorithms = {
             'pca_kmeans': PCAkMeansChangeDetection,
-            'img_diff': ImageDifferencingChangeDetection
+            'img_diff': BackgroundSubstractionChangeDetection
         }
 
         image_processing = ImageProcessing()
@@ -782,7 +784,7 @@ class ChangeDetectionSerializer(serializers.Serializer):
         #block_size = validated_data['block_size']
 
         try:
-            change, percentage_of_change, boxes1, boxes2 = adapter.detect_changes(
+            images, percentage_of_change = adapter.detect_changes(
                 image1, 
                 image2, 
                 **params)
@@ -797,54 +799,23 @@ class ChangeDetectionSerializer(serializers.Serializer):
             )
             raise serializers.ValidationError('Error during change detection.')
 
-        buffer = cv2.imencode(".jpg", change)[1]
-        result_image_file = InMemoryUploadedFile(
-            BytesIO(buffer),
-            None,
-            'output_image.jpg',
-            'image/jpeg',
-            len(buffer),
-            None
-        )
-        output_image = OutputImage.objects.create(image_request=image_request, image=result_image_file)
-        ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Created OutputImage object with id: {output_image.id}.'
-        )
-
-        buffer = cv2.imencode(".jpg", boxes1)[1]
-        result_image_file = InMemoryUploadedFile(
-            BytesIO(buffer),
-            None,
-            'output_image1.jpg',
-            'image/jpeg',
-            len(buffer),
-            None
-        )
-        output_image1 = OutputImage.objects.create(image_request=image_request, image=result_image_file)
-        ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Created OutputImage object with id: {output_image1.id}.'
-        )
-
-        buffer = cv2.imencode(".jpg", boxes2)[1]
-        result_image_file = InMemoryUploadedFile(
-            BytesIO(buffer),
-            None,
-            'output_image2.jpg',
-            'image/jpeg',
-            len(buffer),
-            None
-        )
-        output_image2 = OutputImage.objects.create(image_request=image_request, image=result_image_file)
-        ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Created OutputImage object with id: {output_image2.id}.'
-        )
+        for idx, img in enumerate(images):
+            buffer = cv2.imencode(".jpg", img)[1]
+            result_image_file = InMemoryUploadedFile(
+                BytesIO(buffer),
+                None,
+                f'output_image{idx}.jpg',
+                'image/jpeg',
+                len(buffer),
+                None
+            )
+            output_image = OutputImage.objects.create(image_request=image_request, image=result_image_file)
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' Message: Created OutputImage object with id: {output_image.id}.'
+            )
 
         image_request.status = 'COMPLETED'
         image_request.save()
-        return image_request.id, output_image, percentage_of_change, output_image1, output_image2
+        return image_request, percentage_of_change

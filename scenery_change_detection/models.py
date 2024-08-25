@@ -39,6 +39,7 @@ class ImageRequest(models.Model):
     ALGORITHM_CHOICES = [
         ('pca_kmeans', 'PCA k-Means'),
         ('img_diff', 'Image Difference'),
+        ('bg_sub', 'Background Subtraction'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)

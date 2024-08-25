@@ -209,16 +209,21 @@ class ChangeDetectionView(GenericAPIView):
         )
         serializer = self.serializer_class(data=request.data, context={'image_request': image_request})
         if serializer.is_valid(raise_exception=True):
-            id, output_image, percentage_of_change, boxes1, boxes2 = serializer.save()
-            output_image_serializer = OutputImageSerializer(output_image)
-            boxes1_serializer = OutputImageSerializer(boxes1)
-            boxes2_serializer = OutputImageSerializer(boxes2)
+            # id, output_image, percentage_of_change, boxes1, boxes2 = serializer.save()
+            # output_image_serializer = OutputImageSerializer(output_image)
+            # boxes1_serializer = OutputImageSerializer(boxes1)
+            # boxes2_serializer = OutputImageSerializer(boxes2)
+            res, percentage_of_changes = serializer.save()
+            # response_data = {
+            #     'id': id,
+            #     'output_image': output_image_serializer.data,
+            #     'percentage_of_change': percentage_of_change,
+            #     'boxes1': boxes1_serializer.data,
+            #     'boxes2': boxes2_serializer.data
+            # }
             response_data = {
-                'id': id,
-                'output_image': output_image_serializer.data,
-                'percentage_of_change': percentage_of_change,
-                'boxes1': boxes1_serializer.data,
-                'boxes2': boxes2_serializer.data
+                'request': ImageRequestSerializer(res).data,
+                'percentage_of_change': percentage_of_changes
             }
             ProcessingLog.objects.create(
                 image_request=image_request,
