@@ -761,7 +761,8 @@ class ChangeDetectionSerializer(serializers.Serializer):
 
         algorithms = {
             'pca_kmeans': PCAkMeansChangeDetection,
-            'img_diff': BackgroundSubstractionChangeDetection
+            'img_diff': ImageDifferencingChangeDetection,
+            'bg_sub': BackgroundSubstractionChangeDetection
         }
 
         image_processing = ImageProcessing()
@@ -781,7 +782,6 @@ class ChangeDetectionSerializer(serializers.Serializer):
             log_message=f'Request {image_request.id} status: {image_request.status}.'
                         f' Message: Created InputImage object with id: {input_image2.id}.'
         )
-        #block_size = validated_data['block_size']
 
         try:
             images, percentage_of_change = adapter.detect_changes(
