@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.http import HttpRequest
 from django.utils.html import format_html, format_html_join
 from django.urls import reverse
 from . import models
@@ -13,7 +14,13 @@ class UserAdmin(admin.ModelAdmin):
 
 class ImageRequestAdmin(admin.ModelAdmin):
     list_display = ('id', 'created_at', 'updated_at', 'user_id', 'user_link')
-    readonly_fields = ('user', 'created_at', 'updated_at',)
+    readonly_fields = ('user', 'created_at', 'updated_at', 'parameters', 'algorithm', 'status')
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
 
     def user_link(self, obj):
         url = reverse('admin:scenery_change_detection_user_change', args=[obj.user.id])
@@ -29,6 +36,12 @@ def get_image_request_link(obj):
 class ImageAdmin(admin.ModelAdmin):
     list_display = ('id', 'image_request_id', 'image_request_link', 'image')
     readonly_fields = ('image', 'image_request',)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
 
     def image_request_link(self, obj):
         return get_image_request_link(obj)
@@ -67,10 +80,25 @@ class ProcessingLogAdmin(admin.ModelAdmin):
     list_display = ('id', 'image_request_id', 'image_request_link')
     readonly_fields = ('image_request',)
 
+    def has_add_permission(self, request):
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        return False
+
     def image_request_link(self, obj):
         return get_image_request_link(obj)
 
     image_request_link.short_description = 'Image Request ID'
+
+class OneTimePasswordAdmin(admin.ModelAdmin):
+    list_display = ('otp',)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+    
+    def has_add_permission(self, request):
+        return False
 
 
 admin.site.register(models.User, UserAdmin)
@@ -78,4 +106,4 @@ admin.site.register(models.ImageRequest, ImageRequestAdmin)
 admin.site.register(models.InputImage, InputImageAdmin)
 admin.site.register(models.OutputImage, OutputImageAdmin)
 admin.site.register(models.ProcessingLog, ProcessingLogAdmin)
-admin.site.register(models.OneTimePassword)
+admin.site.register(models.OneTimePassword, OneTimePasswordAdmin)
