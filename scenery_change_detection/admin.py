@@ -1,7 +1,7 @@
 from django.contrib import admin
-from django.http import HttpRequest
 from django.utils.html import format_html, format_html_join
 from django.urls import reverse
+from django.contrib.auth.models import Group
 from . import models
 
 
@@ -10,6 +10,11 @@ class UserAdmin(admin.ModelAdmin):
     search_fields = ('id', 'email')
     list_filter = ('is_staff', 'is_active', 'is_superuser')
     list_per_page = 50
+
+    def save_model(self, request, obj, form, change):
+        if form.cleaned_data.get('password'):
+            obj.set_password(form.cleaned_data['password'])
+        return super().save_model(request, obj, form, change)
 
 
 class ImageRequestAdmin(admin.ModelAdmin):
@@ -107,3 +112,5 @@ admin.site.register(models.InputImage, InputImageAdmin)
 admin.site.register(models.OutputImage, OutputImageAdmin)
 admin.site.register(models.ProcessingLog, ProcessingLogAdmin)
 admin.site.register(models.OneTimePassword, OneTimePasswordAdmin)
+
+admin.site.unregister(Group)
