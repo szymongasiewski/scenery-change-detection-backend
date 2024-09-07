@@ -499,6 +499,8 @@ class TestImageRequestUserHistoryView(APITestCase):
         self.input_image1 = InputImage.objects.create(image_request=self.image_request)
         self.input_image2 = InputImage.objects.create(image_request=self.image_request)
         self.output_image = OutputImage.objects.create(image_request=self.image_request)
+        self.output_image1 = OutputImage.objects.create(image_request=self.image_request)
+        self.output_image2 = OutputImage.objects.create(image_request=self.image_request)
         login_data = {
             'email': 'john@doe.com',
             'password': 'Johndoe123.'
@@ -515,9 +517,9 @@ class TestImageRequestUserHistoryView(APITestCase):
         self.assertEqual(response.data['previous'], None)
         self.assertIsNotNone(response.data['results'])
         self.assertIsNotNone(response.data['results'][0]['created_at'])
+        self.assertIsNotNone(response.data['results'][0]['algorithm'])
         self.assertEqual(response.data['results'][0]['status'], 'COMPLETED')
         self.assertIsNotNone(response.data['results'][0]['input_images'])
-        self.assertIsNotNone(response.data['results'][0]['output_image'])
 
     def test_image_request_user_history_unauthorized(self):
         response = self.client.get(reverse('user-history-images'))

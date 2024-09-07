@@ -13,5 +13,7 @@ urlpatterns = [
     path('verify-email/', views.VerifyEmailView.as_view(), name='verify-email'),
     path('resend-otp/', views.ResendEmailVerificationView.as_view(), name='resend-otp'),
     path('reset-password/', views.ResetPasswordView.as_view(), name='reset-password'),
+    path('image-request/<int:pk>/', views.ImageRequestView.as_view(), name='image-request'),
+    path('image-request/<int:pk>/delete/', views.ImageRequestDeleteView.as_view(), name='image-request-delete'),
     path('reset-password-confirm/', views.ResetPasswordConfirmView.as_view(), name='password-reset-confirm'),
 ]

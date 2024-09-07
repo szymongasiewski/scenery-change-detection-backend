@@ -13,12 +13,15 @@ import re
 from PIL import Image as PilImage
 from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog, OneTimePassword
 from rest_framework import status
-from .utils import ChangeDetection
+from .utils import ChangeDetectionAdapter, ImageProcessing, ImageDifferencingChangeDetection, PCAkMeansChangeDetection, BackgroundSubstractionChangeDetection
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from io import BytesIO
 from django.conf import settings
 from django.utils import timezone
 from django.core.mail import send_mail
+import json
+
+MAX_AREA_LIMIT = 1024 * 1024
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
@@ -322,13 +325,53 @@ class OutputImageSerializer(serializers.ModelSerializer):
         fields = ['image']
 
 
-class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
+class ImageRequestSerializer(serializers.ModelSerializer):
     input_images = InputImageSerializer(many=True, read_only=True)
-    output_image = OutputImageSerializer(read_only=True)
+    output_images = OutputImageSerializer(many=True, read_only=True)
+
+    ALGORITHM_NAME_MAP = {
+        'pca_kmeans': 'PCA k-Means',
+        'img_diff': 'Image Difference',
+        'bg_sub': 'Background Subtraction'
+    }
 
     class Meta:
         model = ImageRequest
-        fields = ['id', 'created_at', 'status', 'input_images', 'output_image']
+        fields = ['id', 'algorithm', 'created_at', 'status', 'input_images', 'output_images', 'parameters']
+
+    def get_full_algorithm_name(self, name):
+        return self.ALGORITHM_NAME_MAP.get(name, name)
+    
+    def to_representation(self, instance):
+        representaton = super().to_representation(instance)
+        name = representaton.get('algorithm')
+        full_name = self.get_full_algorithm_name(name)
+        representaton['algorithm'] = full_name
+        return representaton
+
+
+class ImageRequestUserHistorySerializer(serializers.ModelSerializer):
+    input_images = InputImageSerializer(many=True, read_only=True)
+
+    ALGORITHM_NAME_MAP = {
+        'pca_kmeans': 'PCA k-Means',
+        'img_diff': 'Image Difference',
+        'bg_sub': 'Background Subtraction'
+    }
+
+    class Meta:
+        model = ImageRequest
+        fields = ['id', 'algorithm', 'created_at', 'status', 'input_images']
+
+    def get_full_algorithm_name(self, name):
+        return self.ALGORITHM_NAME_MAP.get(name, name)
+    
+    def to_representation(self, instance):
+        representaton = super().to_representation(instance)
+        name = representaton.get('algorithm')
+        full_name = self.get_full_algorithm_name(name)
+        representaton['algorithm'] = full_name
+        return representaton
 
 
 class RestrictedImageField(serializers.ImageField):
@@ -374,13 +417,291 @@ class RestrictedImageField(serializers.ImageField):
 
 
 class ChangeDetectionSerializer(serializers.Serializer):
+    algorithm = serializers.ChoiceField(choices=['pca_kmeans', 'img_diff', 'bg_sub'], required=True)
     input_image1 = RestrictedImageField()
     input_image2 = RestrictedImageField()
-    block_size = serializers.IntegerField(required=False, default=3, min_value=2, max_value=10)
+    parameters = serializers.JSONField(required=False, default={})
 
-    def validate_block_size(self, value):
-        if value < 2 or value > 5:
-            image_request = self.context.get('image_request')
+    def validate_parameters(self, value):
+        image_request = self.context.get('image_request')
+
+        block_size = value.get('block_size')
+        if block_size is not None:
+            self.validate_block_size(block_size, image_request)
+
+        morphological_operation = value.get('morphological_operation')
+        if morphological_operation is not None:
+            self.validate_morphological_operation(morphological_operation, image_request)
+
+        morphological_iterations = value.get('morphological_iterations')
+        if morphological_iterations is not None:
+            self.validate_morphological_iterations(morphological_iterations, image_request)
+
+        kernel_shape = value.get('kernel_shape')
+        if kernel_shape is not None:
+            self.validate_kernel_shape(kernel_shape, image_request)
+
+        kernel_size = value.get('kernel_size')
+        if kernel_size is not None:
+            self.validate_kernel_size(kernel_size, image_request)
+
+        area_lower_limit = value.get('area_lower_limit')
+        if area_lower_limit is not None:
+            self.validate_area_lower_limit(area_lower_limit, image_request)
+
+        area_upper_limit = value.get('area_upper_limit')
+        if area_upper_limit is not None:
+            self.validate_area_upper_limit(area_upper_limit, image_request)
+
+        if area_lower_limit is not None and area_upper_limit is not None:
+            self.validate_area_limits(area_lower_limit, area_upper_limit, image_request)
+
+        return value
+    
+    def validate_area_limits(self, area_lower_limit, area_upper_limit, image_request):
+        if area_lower_limit > area_upper_limit:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area limits. Area lower limit must be less than area upper limit.'
+            )
+            raise serializers.ValidationError('Invalid area limits. Area lower limit must be less than area upper limit.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Area limits are valid. Area lower limit is {area_lower_limit}.'
+                        f' Area upper limit is {area_upper_limit}.'
+        )
+
+    
+    def validate_area_lower_limit(self, area_lower_limit, image_request):
+        if not isinstance(area_lower_limit, int):
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_lower_limit. Area lower limit must be an integer.'
+            )
+            raise serializers.ValidationError('Invalid area_lower_limit. Area lower limit must be an integer.')
+        if area_lower_limit <= 0:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_lower_limit. Area lower limit must be greater than 0.'
+            )
+            raise serializers.ValidationError('Invalid area_lower_limit. Area lower limit must be greater than 0.')
+        if area_lower_limit > MAX_AREA_LIMIT:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_lower_limit. Area lower limit must not exceed {MAX_AREA_LIMIT}.'
+            )
+            raise serializers.ValidationError(f'Invalid area_lower_limit. Area lower limit must not exceed {MAX_AREA_LIMIT}.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Area lower limit is valid. Area lower limit is {area_lower_limit}.'
+        )
+        return area_lower_limit
+
+    def validate_area_upper_limit(self, area_upper_limit, image_request):
+        if not isinstance(area_upper_limit, int):
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_upper_limit. Area upper limit must be an integer.'
+            )
+            raise serializers.ValidationError('Invalid area_upper_limit. Area upper limit must be an integer.')
+        if area_upper_limit <= 0:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_upper_limit. Area upper limit must be greater than 0.'
+            )
+            raise serializers.ValidationError('Invalid area_upper_limit. Area upper limit must be greater than 0.')
+        if area_upper_limit > MAX_AREA_LIMIT:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid area_upper_limit. Area upper limit must not exceed {MAX_AREA_LIMIT}.'
+            )
+            raise serializers.ValidationError(f'Invalid area_upper_limit. Area upper limit must not exceed {MAX_AREA_LIMIT}.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Area upper limit is valid. Area upper limit is {area_upper_limit}.'
+        )
+        return area_upper_limit
+
+    def validate_algorithm(self, value):
+        valid_algorithms = ['pca_kmeans', 'img_diff', 'bg_sub']
+        image_request = self.context.get('image_request')
+        if value not in valid_algorithms:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid algorithm. Valid algorithms are: PCAkMeans, ImgDiff.'
+            )
+            raise serializers.ValidationError('Invalid algorithm. Valid algorithms are: PCAkMeans, ImgDiff.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Algorithm is valid. {value} algorithm will be applied.'
+        )
+        return value
+
+    def validate_kernel_size(self, kernel_size, image_request):
+        if not isinstance(kernel_size, int):
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid kernel_size. Kernel size must be an integer.'
+            )
+            raise serializers.ValidationError('Invalid kernel_size. Kernel size must be an integer.')
+        if kernel_size < 3 or kernel_size > 5:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid kernel_size. Kernel size must be between 3 and 5.'
+            )
+            raise serializers.ValidationError('Invalid kernel_size. Kernel size must be between 3 and 5.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Kernel size is valid. Kernel size is {kernel_size}.'
+        )
+        return kernel_size
+    
+    def validate_kernel_shape(self, kernel_shape, image_request):
+        if not isinstance(kernel_shape, str):
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid kernel_shape. Kernel shape must be a string.'
+            )
+            raise serializers.ValidationError('Invalid kernel_shape. Kernel shape must be a string.')
+        valid_shapes = ['cross', 'ellipse', 'rect']
+        if kernel_shape not in valid_shapes:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid kernel_shape. Valid shapes are: cross, ellipse, rect.'
+            )
+            raise serializers.ValidationError('Invalid kernel_shape. Valid shapes are: cross, ellipse, rect.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Kernel shape is valid. {kernel_shape} shape will be applied.'
+        )
+        return kernel_shape
+
+
+    def validate_morphological_iterations(self, morphological_iterations, image_request):
+        if not isinstance(morphological_iterations, int):
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid morphological_iterations. Iterations must be an integer.'
+            )
+            raise serializers.ValidationError('Invalid morphological_iterations. Iterations must be an integer.')
+        if morphological_iterations < 1 or morphological_iterations > 3:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid morphological_iterations. Iterations must be between 1 and 10.'
+            )
+            raise serializers.ValidationError('Invalid morphological_iterations. Iterations must be between 1 and 10.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Morphological iterations are valid. {morphological_iterations} iterations will be applied.'
+        )
+        return morphological_iterations
+
+    def validate_morphological_operation(self, morphological_operation, image_request):
+        if not isinstance(morphological_operation, str):
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid morphological operation. Operation must be a string.'
+            )
+            raise serializers.ValidationError('Invalid morphological operation. Operation must be a string.')
+        valid_operations = ['erode', 'dilate', 'opening', 'closing', None]
+        if morphological_operation is not None:
+            morphological_operation = morphological_operation.lower()
+        if morphological_operation not in valid_operations:
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid morphological operation. Valid operations are: erode, dilate, opening, closing.'
+            )
+            raise serializers.ValidationError('Invalid morphological operation. Valid operations are: erode, dilate, opening, closing.')
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Morphological operation is valid. {morphological_operation} operation will be applied.'
+        )
+        return morphological_operation
+
+    def validate_block_size(self, block_size, image_request):
+        if not isinstance(block_size, int):
+            image_request.status = 'FAILED'
+            image_request.save()
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' HTTP status: {str(status.HTTP_400_BAD_REQUEST)}.'
+                            f' Message: Invalid block_size. Block size must be an integer.'
+            )
+            raise serializers.ValidationError('Invalid block size. Block size must be an integer.')
+        if block_size < 2 or block_size > 5:
             image_request.status = 'FAILED'
             image_request.save()
             ProcessingLog.objects.create(
@@ -390,8 +711,12 @@ class ChangeDetectionSerializer(serializers.Serializer):
                             f' Message: Invalid block_size. Block size must be between 2 and 5.'
             )
             raise serializers.ValidationError('Invalid block size. Block size must be between 2 and 5.')
-
-        return value
+        ProcessingLog.objects.create(
+            image_request=image_request,
+            log_message=f'Request {image_request.id} status: {image_request.status}.'
+                        f' Message: Block size is valid. Block size is {block_size}.'
+        )
+        return block_size
 
     def validate(self, attrs):
         image_request = self.context.get('image_request')
@@ -431,6 +756,20 @@ class ChangeDetectionSerializer(serializers.Serializer):
         image_request = self.context.get('image_request')
         image1 = validated_data['input_image1']
         image2 = validated_data['input_image2']
+        algorithm = validated_data['algorithm']
+        params = validated_data.get('parameters', {})
+
+        algorithms = {
+            'pca_kmeans': PCAkMeansChangeDetection,
+            'img_diff': ImageDifferencingChangeDetection,
+            'bg_sub': BackgroundSubstractionChangeDetection
+        }
+
+        image_processing = ImageProcessing()
+        algorithm_class = algorithms[algorithm]
+        algorithm_instance = algorithm_class(image_processing)
+        adapter = ChangeDetectionAdapter(algorithm_instance)
+
         input_image1 = InputImage.objects.create(image=image1, image_request=image_request)
         ProcessingLog.objects.create(
             image_request=image_request,
@@ -443,10 +782,12 @@ class ChangeDetectionSerializer(serializers.Serializer):
             log_message=f'Request {image_request.id} status: {image_request.status}.'
                         f' Message: Created InputImage object with id: {input_image2.id}.'
         )
-        block_size = validated_data['block_size']
 
         try:
-            change = ChangeDetection.change_detection(image1, image2, block_size)
+            images, percentage_of_change = adapter.detect_changes(
+                image1, 
+                image2, 
+                **params)
         except Exception as e:
             image_request.status = 'FAILED'
             image_request.save()
@@ -458,22 +799,23 @@ class ChangeDetectionSerializer(serializers.Serializer):
             )
             raise serializers.ValidationError('Error during change detection.')
 
-        buffer = cv2.imencode(".jpg", change)[1]
-        result_image_file = InMemoryUploadedFile(
-            BytesIO(buffer),
-            None,
-            'output_image.jpg',
-            'image/jpeg',
-            len(buffer),
-            None
-        )
-        output_image = OutputImage.objects.create(image_request=image_request, image=result_image_file)
-        ProcessingLog.objects.create(
-            image_request=image_request,
-            log_message=f'Request {image_request.id} status: {image_request.status}.'
-                        f' Message: Created OutputImage object with id: {output_image.id}.'
-        )
+        for idx, img in enumerate(images):
+            buffer = cv2.imencode(".jpg", img)[1]
+            result_image_file = InMemoryUploadedFile(
+                BytesIO(buffer),
+                None,
+                f'output_image{idx}.jpg',
+                'image/jpeg',
+                len(buffer),
+                None
+            )
+            output_image = OutputImage.objects.create(image_request=image_request, image=result_image_file)
+            ProcessingLog.objects.create(
+                image_request=image_request,
+                log_message=f'Request {image_request.id} status: {image_request.status}.'
+                            f' Message: Created OutputImage object with id: {output_image.id}.'
+            )
 
         image_request.status = 'COMPLETED'
         image_request.save()
-        return output_image
+        return image_request, percentage_of_change

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html, format_html_join
 from django.urls import reverse
+from django.contrib.auth.models import Group
 from . import models
 
 
@@ -10,10 +11,21 @@ class UserAdmin(admin.ModelAdmin):
     list_filter = ('is_staff', 'is_active', 'is_superuser')
     list_per_page = 50
 
+    def save_model(self, request, obj, form, change):
+        if form.cleaned_data.get('password'):
+            obj.set_password(form.cleaned_data['password'])
+        return super().save_model(request, obj, form, change)
+
 
 class ImageRequestAdmin(admin.ModelAdmin):
     list_display = ('id', 'created_at', 'updated_at', 'user_id', 'user_link')
-    readonly_fields = ('user', 'created_at', 'updated_at',)
+    readonly_fields = ('user', 'created_at', 'updated_at', 'parameters', 'algorithm', 'status')
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
 
     def user_link(self, obj):
         url = reverse('admin:scenery_change_detection_user_change', args=[obj.user.id])
@@ -30,21 +42,29 @@ class ImageAdmin(admin.ModelAdmin):
     list_display = ('id', 'image_request_id', 'image_request_link', 'image')
     readonly_fields = ('image', 'image_request',)
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_add_permission(self, request):
+        return False
+
     def image_request_link(self, obj):
         return get_image_request_link(obj)
     image_request_link.short_description = 'Image Request ID'
 
 
 class InputImageAdmin(ImageAdmin):
-    list_display = ImageAdmin.list_display + ('output_image_reference',)
-    readonly_fields = ImageAdmin.readonly_fields + ('output_image_reference',)
+    list_display = ImageAdmin.list_display + ('output_images_links',)
+    readonly_fields = ImageAdmin.readonly_fields + ('output_images_links',)
 
-    def output_image_reference(self, obj):
-        output_image = obj.image_request.output_image
-        url = reverse('admin:scenery_change_detection_outputimage_change', args=[output_image.id])
-        return format_html('<a href="{}">{}<a/>', url, output_image.id)
-
-    output_image_reference.short_description = 'Output Image ID'
+    def output_images_links(self, obj):
+        links = []
+        for output_image in obj.image_request.output_images.all():
+            url = reverse('admin:scenery_change_detection_outputimage_change', args=[output_image.id])
+            links.append(format_html('<a href="{}">{}</a>', url, output_image.id))
+        return format_html_join(', ', '{}', ((link,) for link in links))
+    
+    output_images_links.short_description = 'Output Images Links'
 
 
 class OutputImageAdmin(ImageAdmin):
@@ -65,10 +85,25 @@ class ProcessingLogAdmin(admin.ModelAdmin):
     list_display = ('id', 'image_request_id', 'image_request_link')
     readonly_fields = ('image_request',)
 
+    def has_add_permission(self, request):
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        return False
+
     def image_request_link(self, obj):
         return get_image_request_link(obj)
 
     image_request_link.short_description = 'Image Request ID'
+
+class OneTimePasswordAdmin(admin.ModelAdmin):
+    list_display = ('otp',)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+    
+    def has_add_permission(self, request):
+        return False
 
 
 admin.site.register(models.User, UserAdmin)
@@ -76,4 +111,6 @@ admin.site.register(models.ImageRequest, ImageRequestAdmin)
 admin.site.register(models.InputImage, InputImageAdmin)
 admin.site.register(models.OutputImage, OutputImageAdmin)
 admin.site.register(models.ProcessingLog, ProcessingLogAdmin)
-admin.site.register(models.OneTimePassword)
+admin.site.register(models.OneTimePassword, OneTimePasswordAdmin)
+
+admin.site.unregister(Group)

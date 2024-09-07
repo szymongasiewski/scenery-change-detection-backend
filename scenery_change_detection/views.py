@@ -1,16 +1,17 @@
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.generics import GenericAPIView, ListAPIView
+from rest_framework.generics import GenericAPIView, ListAPIView, RetrieveAPIView, DestroyAPIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (UserRegisterSerializer, LoginSerializer, RefreshTokenSerializer, LogoutSerializer,
                           OutputImageSerializer, ChangePasswordSerializer, DeleteUserSerializer,
                           ImageRequestUserHistorySerializer, ChangeDetectionSerializer, VerifyEmailSerializer,
-                          ResendEmailVerificationSerializer, ResetPasswordSerializer, ResetPasswordConfirmSerializer)
+                          ResendEmailVerificationSerializer, ResetPasswordSerializer, ResetPasswordConfirmSerializer, ImageRequestSerializer)
 from .models import ImageRequest, ProcessingLog
 import json
+import boto3
 
 
 class RegisterUserView(GenericAPIView):
@@ -144,6 +145,41 @@ class LogoutUserView(GenericAPIView):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         response.delete_cookie('refresh_token')
         return response
+    
+
+class ImageRequestView(RetrieveAPIView):
+    queryset = ImageRequest.objects.all()
+    serializer_class = ImageRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return ImageRequest.objects.filter(user=user).prefetch_related('input_images', 'output_images')
+    
+
+class ImageRequestDeleteView(DestroyAPIView):
+    queryset = ImageRequest.objects.all()
+    serializer_class = ImageRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return ImageRequest.objects.filter(user=user)
+    
+    def perform_destroy(self, instance):
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            )
+        
+        for output_image in instance.output_images.all():
+            s3_client.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=output_image.image.name)
+
+        for input_image in instance.input_images.all():
+            s3_client.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=input_image.image.name)
+
+        instance.delete()
 
 
 class ImageRequestUserHistoryView(ListAPIView):
@@ -154,7 +190,7 @@ class ImageRequestUserHistoryView(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return (ImageRequest.objects.filter(user=user).order_by('-created_at')
-                .prefetch_related('input_images', 'output_image'))
+                .prefetch_related('input_images'))
 
 
 class ChangeDetectionView(GenericAPIView):
@@ -163,7 +199,9 @@ class ChangeDetectionView(GenericAPIView):
     serializer_class = ChangeDetectionSerializer
 
     def post(self, request, format=None):
-        image_request = ImageRequest.objects.create(user=request.user, status='PENDING')
+        algorithm_type = request.data.get('algorithm')
+        algorithm_params = request.data.get('parameters', {})
+        image_request = ImageRequest.objects.create(user=request.user, status='PENDING', algorithm=algorithm_type, parameters=algorithm_params)
         ProcessingLog.objects.create(
             image_request=image_request,
             log_message=f'Request {image_request.id} status: {image_request.status}.'
@@ -171,10 +209,10 @@ class ChangeDetectionView(GenericAPIView):
         )
         serializer = self.serializer_class(data=request.data, context={'image_request': image_request})
         if serializer.is_valid(raise_exception=True):
-            output_image = serializer.save()
-            output_image_serializer = OutputImageSerializer(output_image)
+            res, percentage_of_changes = serializer.save()
             response_data = {
-                'output_image': output_image_serializer.data,
+                'request': ImageRequestSerializer(res).data,
+                'percentage_of_change': percentage_of_changes
             }
             ProcessingLog.objects.create(
                 image_request=image_request,
