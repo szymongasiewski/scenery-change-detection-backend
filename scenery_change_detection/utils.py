@@ -279,6 +279,13 @@ class BackgroundSubstractionChangeDetection(BaseChangeDetection):
         super().__init__(img_processing)
 
     def detect_changes(self, img1, img2, **kwargs):
+        morphological_operation = kwargs.get('morphological_operation', None)
+        morphological_iterations = kwargs.get('morphological_iterations', 1)
+        kernel_shape = kwargs.get('kernel_shape', 'cross')
+        kernel_size = kwargs.get('kernel_size', 3)
+        area_lower_limit = kwargs.get('area_lower_limit', None)
+        area_upper_limit = kwargs.get('area_upper_limit', None)
+        
         image1 = self.img_processing.read_image(img1)
         image2 = self.img_processing.read_image(img2)
         image1_gray = self.img_processing.convert_to_grayscale(image1)
@@ -292,6 +299,27 @@ class BackgroundSubstractionChangeDetection(BaseChangeDetection):
         change_map = cv2.threshold(diff_image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         change_map = change_map.astype(np.uint8)
         change_map = cv2.bitwise_not(change_map)
-        return [change_map], self.img_processing.calculate_percentage_change(change_map)
+
+        if morphological_operation:
+            kernel = self.img_processing.get_kernel(kernel_shape, kernel_size)
+            change_map = self.img_processing.apply_morphological_operation(change_map, morphological_operation, kernel, iterations=morphological_iterations)
+
+        contours = self.img_processing.get_contours(change_map)
+
+        if not isinstance(image1, np.ndarray):
+            image1 = np.array(image1, dtype=np.uint8)
+        elif image1.dtype != np.uint8:
+            image1 = image1.astype(np.uint8)
+
+        image1_with_contours = self.img_processing.draw_contours(image1, contours, area_lower_limit, area_upper_limit)
+
+        if not isinstance(image2, np.ndarray):
+            image2 = np.array(image2, dtype=np.uint8)
+        elif image2.dtype != np.uint8:
+            image2 = image2.astype(np.uint8)
+
+        image2_with_contours = self.img_processing.draw_contours(image2, contours, area_lower_limit, area_upper_limit)
+
+        return [change_map, image1_with_contours, image2_with_contours], self.img_processing.calculate_percentage_change(change_map)
         
 
