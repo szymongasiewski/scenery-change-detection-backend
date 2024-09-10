@@ -13,7 +13,7 @@ import re
 from PIL import Image as PilImage
 from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog, OneTimePassword
 from rest_framework import status
-from .utils import ChangeDetectionAdapter, ImageProcessing, ImageDifferencingChangeDetection, PCAkMeansChangeDetection, BackgroundSubstractionChangeDetection
+from .utils import ChangeDetection, ImageUtils, ImageDifferencingAlgorithm, PCAkMeansAlgorithm, BackgroundSubstractionAlgorithm
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from io import BytesIO
 from django.conf import settings
@@ -760,15 +760,15 @@ class ChangeDetectionSerializer(serializers.Serializer):
         params = validated_data.get('parameters', {})
 
         algorithms = {
-            'pca_kmeans': PCAkMeansChangeDetection,
-            'img_diff': ImageDifferencingChangeDetection,
-            'bg_sub': BackgroundSubstractionChangeDetection
+            'pca_kmeans': PCAkMeansAlgorithm,
+            'img_diff': ImageDifferencingAlgorithm,
+            'bg_sub': BackgroundSubstractionAlgorithm
         }
 
-        image_processing = ImageProcessing()
+        image_utils = ImageUtils()
         algorithm_class = algorithms[algorithm]
-        algorithm_instance = algorithm_class(image_processing)
-        adapter = ChangeDetectionAdapter(algorithm_instance)
+        algorithm_instance = algorithm_class(image_utils)
+        adapter = ChangeDetection(algorithm_instance)
 
         input_image1 = InputImage.objects.create(image=image1, image_request=image_request)
         ProcessingLog.objects.create(
