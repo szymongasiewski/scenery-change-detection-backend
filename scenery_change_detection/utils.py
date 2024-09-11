@@ -274,7 +274,7 @@ class ImageDifferencingAlgorithm(ChangeDetectionAlgorithm):
         return [change_map, image1_with_contours, image2_with_contours], percentage_change
 
 
-class BackgroundSubstractionAlgorithm(ChangeDetectionAlgorithm):
+class BackgroundSubtractionAlgorithm(ChangeDetectionAlgorithm):
     def __init__(self, img_utils):
         super().__init__(img_utils)
 

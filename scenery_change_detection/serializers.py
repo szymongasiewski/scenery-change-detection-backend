@@ -13,7 +13,7 @@ import re
 from PIL import Image as PilImage
 from .models import User, InputImage, OutputImage, ImageRequest, ProcessingLog, OneTimePassword
 from rest_framework import status
-from .utils import ChangeDetection, ImageUtils, ImageDifferencingAlgorithm, PCAkMeansAlgorithm, BackgroundSubstractionAlgorithm
+from .utils import ChangeDetection, ImageUtils, ImageDifferencingAlgorithm, PCAkMeansAlgorithm, BackgroundSubtractionAlgorithm
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from io import BytesIO
 from django.conf import settings
@@ -762,7 +762,7 @@ class ChangeDetectionSerializer(serializers.Serializer):
         algorithms = {
             'pca_kmeans': PCAkMeansAlgorithm,
             'img_diff': ImageDifferencingAlgorithm,
-            'bg_sub': BackgroundSubstractionAlgorithm
+            'bg_sub': BackgroundSubtractionAlgorithm
         }
 
         image_utils = ImageUtils()
