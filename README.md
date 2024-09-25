@@ -81,3 +81,44 @@ After building the containers and setting up the environment, you can start the 
 ```bash
 docker compose up
 ```
+
+This will:
+
+- Start the `db` service using Postgrs image.
+- Start the `web` service, which runs the Django development server on `http://localhost:8000`.
+- Automatically apply migrations (`python manage.py migrate`), and expose the appliaction on port `8000`.
+
+### 5. Stopping the Application
+
+To stop the running containers:
+
+```bash
+docker compose down
+```
+
+This will stop and remove the containers but leave the volumes intact (i.e., the database will persist).
+
+## Making migrations
+
+To run appliaction properly you have to make migrations for `scenery_change_detection` app.
+
+You can do it by running following commands:
+
+1. Run your containers detached:
+
+```bash
+docker compose up -d
+```
+
+2. Run makemigrations command for `scenery_change_detection` app:
+
+```bash
+docker compose exec web python manage.py makemigrations scenery_change_detection
+```
+
+3. Restart your containers
+
+```bash
+docker compose down
+docker compose up
+```
