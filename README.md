@@ -4,6 +4,14 @@ This repository is the backend of an application created as part of a diploma th
 
 The application was created at the **Faculty of Computer Science of the Białystok University of Technology**.
 
+## Technologies
+This project was built using following technologies:
+- **Python**
+- **Django and Django REST Framework**
+- **PostgeSQL**
+- **Docker**
+- **AWS S3**
+
 ## Requirements
 
 To build and run this application you need:
